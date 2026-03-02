@@ -14,6 +14,7 @@ import Signup from "./pages/Signup";
 import Profile from "./pages/Profile";
 import Orders from "./pages/Orders";
 import NotFound from "./pages/NotFound";
+import OrderSuccess from "./pages/OrderSuccess";
 
 const queryClient = new QueryClient();
 
@@ -28,8 +29,14 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/categories/:categoryId" element={<CategoriesPage />} />
+              <Route path="/categories" element={<CategoriesPage />} />
+              <Route path="/categories" element={<CategoriesPage />} />
+<Route path="/categories/:categorySlug" element={<CategoriesPage />} />
+<Route path="/categories/:categorySlug/:subSlug" element={<CategoriesPage />} />
+
               <Route path="/product/:productId" element={<ProductDetails />} />
               <Route path="/checkout" element={<Checkout />} />
+              <Route path="/order-success" element={<OrderSuccess />} />
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />
               <Route path="/profile" element={<Profile />} />

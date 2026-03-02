@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,15 +12,32 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import logo from "../../Images/JSGALORE.png";
 
-const categories = [
-  { name: "Living Room", path: "/categories/living-room" },
-  { name: "Bedroom", path: "/categories/bedroom" },
-  { name: "Dining", path: "/categories/dining" },
-  { name: "Office", path: "/categories/office" },
-  { name: "Outdoor", path: "/categories/outdoor" },
-  { name: "Decor", path: "/categories/decor" },
+const API_ADMIN = "https://api.jsgallor.com/api/admin";
+
+type ApiCategory = {
+  id: string;
+  name: string;
+  slug: string;
+  parentId: string | null;
+  segment?: "all" | "affordable" | "midrange" | "luxury";
+  status?: "active" | "hidden" | "disabled";
+  showOnWebsite?: boolean;
+  showInNavbar?: boolean;
+  order?: number;
+};
+
+const fallbackCategories = [
+  { name: "Living Room", slug: "living-room" },
+  { name: "Bedroom", slug: "bedroom" },
+  { name: "Dining", slug: "dining" },
+  { name: "Office", slug: "office" },
+  { name: "Outdoor", slug: "outdoor" },
+  { name: "Decor", slug: "decor" },
 ];
+
+const norm = (s?: string) => String(s || "").trim().toLowerCase();
 
 export const Navbar = () => {
   const { totalItems } = useCart();
@@ -28,6 +45,88 @@ export const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const location = useLocation();
+
+  // ✅ categories from backend
+  const [categories, setCategories] = useState<ApiCategory[]>([]);
+  const [catLoading, setCatLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchCats = async () => {
+      try {
+        setCatLoading(true);
+
+        const urls = [
+          `${API_ADMIN}/categories?segment=all&status=active&level=parent&sort=order&limit=200`,
+          `${API_ADMIN}/categories?segment=affordable&status=active&level=parent&sort=order&limit=200`,
+        ];
+
+        const [r1, r2] = await Promise.all(urls.map((u) => fetch(u)));
+        if (!r1.ok || !r2.ok) throw new Error("Failed to fetch categories");
+
+        const j1 = await r1.json().catch(() => ({}));
+        const j2 = await r2.json().catch(() => ({}));
+
+        const a1: ApiCategory[] = j1?.data?.items || [];
+        const a2: ApiCategory[] = j2?.data?.items || [];
+
+        // ✅ merge unique by slug (prefer affordable if duplicates)
+        const map = new Map<string, ApiCategory>();
+        a1.forEach((c) => c?.slug && map.set(c.slug, c));
+        a2.forEach((c) => c?.slug && map.set(c.slug, c));
+
+        let merged = Array.from(map.values());
+
+        // ✅ only active + (all or affordable) + showOnWebsite true (if present)
+        merged = merged.filter((c) => {
+          if (c.status && c.status !== "active") return false;
+          const seg = norm(c.segment);
+          if (seg !== "all" && seg !== "affordable") return false;
+
+          // if backend sends showOnWebsite, enforce it
+          if (typeof c.showOnWebsite === "boolean" && !c.showOnWebsite) return false;
+
+          // if backend sends showInNavbar, enforce it (optional)
+          if (typeof c.showInNavbar === "boolean" && !c.showInNavbar) return false;
+
+          // parent only (already filtered by level=parent, but double safe)
+          if (c.parentId) return false;
+
+          return true;
+        });
+
+        // ✅ sort by order if present
+        merged.sort((x, y) => Number(x.order || 0) - Number(y.order || 0));
+
+        setCategories(merged);
+      } catch {
+        setCategories([]);
+      } finally {
+        setCatLoading(false);
+      }
+    };
+
+    fetchCats();
+  }, []);
+
+  // ✅ final list for navbar (fallback if api fails)
+  const navCats = useMemo(() => {
+    if (categories.length > 0) {
+      return categories.map((c) => ({
+        name: c.name,
+        path: `/categories/${c.slug}`,
+      }));
+    }
+    return fallbackCategories.map((c) => ({
+      name: c.name,
+      path: `/categories/${c.slug}`,
+    }));
+  }, [categories]);
+
+  const isCatActive = (path: string) => {
+    // active for exact OR when you're inside that category route
+    // example: /categories/living-room or /categories/living-room?sub=xxx
+    return location.pathname === path || location.pathname.startsWith(path + "/") || location.pathname.startsWith(path);
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full">
@@ -37,8 +136,8 @@ export const Navbar = () => {
           <div className="flex items-center justify-between h-16 gap-4">
             {/* Logo */}
             <Link to="/" className="flex items-center gap-3 group">
-              <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-md group-hover:shadow-glow transition-all duration-300 group-hover:rotate-[360deg]">
-                <span className="text-primary-foreground font-bold text-lg">JS</span>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-md group-hover:shadow-glow transition-all duration-300 group-hover:rotate-[360deg]">
+                <img src={logo} alt="JSGALORE Logo" className="w-8 h-8 object-contain" />
               </div>
               <div className="hidden sm:block">
                 <h1 className="font-bold text-lg text-foreground leading-tight">JSGALORE</h1>
@@ -85,11 +184,7 @@ export const Navbar = () => {
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon" className="rounded-full">
                       {user?.avatar ? (
-                        <img
-                          src={user.avatar}
-                          alt={user.name}
-                          className="w-8 h-8 rounded-full"
-                        />
+                        <img src={user.avatar} alt={user.name} className="w-8 h-8 rounded-full" />
                       ) : (
                         <User className="h-5 w-5" />
                       )}
@@ -139,23 +234,29 @@ export const Navbar = () => {
       <nav className="hidden md:block bg-white border-b border-border/30">
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-center gap-1">
-            {categories.map((cat) => (
+            {navCats.map((cat) => (
               <Link
                 key={cat.path}
                 to={cat.path}
                 className={`px-4 py-3 text-sm font-medium transition-colors hover:text-primary relative group ${
-                  location.pathname === cat.path ? "text-primary" : "text-foreground/80"
+                  isCatActive(cat.path) ? "text-primary" : "text-foreground/80"
                 }`}
               >
                 {cat.name}
                 <span
                   className={`absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 bg-primary transition-all duration-300 ${
-                    location.pathname === cat.path ? "w-full" : "w-0 group-hover:w-full"
+                    isCatActive(cat.path) ? "w-full" : "w-0 group-hover:w-full"
                   }`}
                 />
               </Link>
             ))}
           </div>
+
+          {catLoading && (
+            <div className="text-center text-xs text-muted-foreground pb-2">
+              Loading categories...
+            </div>
+          )}
         </div>
       </nav>
 
@@ -177,7 +278,7 @@ export const Navbar = () => {
 
             {/* Mobile categories */}
             <div className="grid grid-cols-2 gap-2">
-              {categories.map((cat) => (
+              {navCats.map((cat) => (
                 <Link
                   key={cat.path}
                   to={cat.path}

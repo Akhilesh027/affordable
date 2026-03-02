@@ -24,12 +24,35 @@ export interface Category {
   count: number;
 }
 
+// types/user.ts or update existing types
 export interface User {
   id: string;
   name: string;
   email: string;
   avatar?: string;
+  role?: string;
+  platform?: string;
+  isVerified?: boolean;
+  totalOrders?: number;
+  totalSpent?: number;
+  createdAt?: string;
   phone?: string;
+  address?: {
+    street?: string;
+    city?: string;
+    state?: string;
+    country?: string;
+    zipCode?: string;
+  };
+}
+
+// If you have an existing types/index.ts, add:
+export interface AuthResponse {
+  success: boolean;
+  message?: string;
+  token?: string;
+  customer?: User;
+  errors?: string[];
 }
 
 export interface Address {

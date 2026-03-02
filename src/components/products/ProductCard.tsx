@@ -20,7 +20,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     <div className="group bg-card rounded-2xl overflow-hidden shadow-soft hover:shadow-strong transition-all duration-300 hover:-translate-y-1">
       {/* Image container */}
       <div className="relative aspect-[4/3] overflow-hidden bg-muted">
-        <Link to={`/product/${product.id}`}>
+        <Link to={`/product/${product._id}`}>
           <img
             src={product.image}
             alt={product.name}

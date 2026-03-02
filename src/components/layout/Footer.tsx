@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { Facebook, Instagram, Twitter, Mail, Phone, MapPin } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-
+import logo from '../../Images/JSGALORE.png'
 export const Footer = () => {
   return (
     <footer className="bg-foreground text-background">
@@ -35,8 +35,8 @@ export const Footer = () => {
             {/* Brand */}
             <div>
               <Link to="/" className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-                  <span className="text-primary-foreground font-bold text-lg">JS</span>
+                <div className="w-10 h-10 rounded-xl  flex items-center justify-center">
+                  <img src={logo} alt="JSGALORE Logo" className="w-8 h-8 object-contain" />
                 </div>
                 <div>
                   <h2 className="font-bold text-lg">JSGALORE</h2>

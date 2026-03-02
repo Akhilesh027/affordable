@@ -1,60 +1,202 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
-import { getProductById, formatPrice, products } from "@/data/products";
+import { formatPrice } from "@/data/products";
 import { useCart } from "@/context/CartContext";
-import { useState } from "react";
-import { Star, Heart, Share2, Truck, Shield, RefreshCw, Minus, Plus, ShoppingCart } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Heart,
+  Share2,
+  Truck,
+  Shield,
+  RefreshCw,
+  Minus,
+  Plus,
+  ShoppingCart,
+} from "lucide-react";
 import { ProductCard } from "@/components/products/ProductCard";
 import { Badge } from "@/components/ui/badge";
+
+const API_BASE = "https://api.jsgallor.com/api/affordable";
+
+type ApiProduct = {
+  _id: string;
+  name: string;
+  category: string; // "living-room"
+  description?: string;
+  price: number;
+  originalPrice?: number;
+  quantity?: number;
+  availability?: string;
+  color?: string;
+  image: string;
+  galleryImages?: string[];
+
+  // ✅ add from backend
+  material?: string;
+  weight?: string | number;
+  size?: string;
+  tier?: string;
+};
+
+type UiProduct = {
+  id: string;
+  _id: string;
+  name: string;
+  category: string;
+  description: string;
+  price: number;
+  originalPrice?: number;
+  image: string;
+  images: string[];
+  inStock: boolean;
+  colors: string[];
+  quantity: number;
+
+  // ✅ add for UI
+  material: string;
+  weight: string;
+  size: string;
+};
+
+const mapApiProductToUi = (p: ApiProduct): UiProduct => {
+  const qty = Number(p.quantity ?? 0);
+
+  // ✅ Stock logic (more reliable)
+  const availability = String(p.availability || "").toLowerCase();
+  const inStock = qty > 0 && (availability.includes("in stock") || availability === "");
+
+  const images =
+    p.galleryImages && p.galleryImages.length > 0
+      ? [p.image, ...p.galleryImages]
+      : [p.image];
+
+  return {
+    id: p._id,
+    _id: p._id,
+    name: p.name,
+    category: p.category,
+    description: p.description || "",
+    price: Number(p.price) || 0,
+    originalPrice: p.originalPrice,
+    image: p.image,
+    images,
+    inStock,
+    colors: p.color ? [p.color] : [],
+    quantity: qty,
+
+    // ✅ map new fields
+    material: p.material || "—",
+    weight: p.weight ? String(p.weight) : "—",
+    size: p.size || "—",
+  };
+};
 
 const ProductDetails = () => {
   const { productId } = useParams();
   const navigate = useNavigate();
   const { addToCart } = useCart();
+
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
 
-  const product = getProductById(productId || "");
+  const [product, setProduct] = useState<UiProduct | null>(null);
+  const [relatedProducts, setRelatedProducts] = useState<UiProduct[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  if (!product) {
+  // ✅ Fetch product by id
+  useEffect(() => {
+    const fetchProduct = async () => {
+      if (!productId) return;
+
+      try {
+        setLoading(true);
+        setError("");
+
+        const res = await fetch(`${API_BASE}/products/${productId}`);
+        if (!res.ok) throw new Error("Product not found");
+
+        const data: ApiProduct = await res.json();
+        setProduct(mapApiProductToUi(data));
+      } catch (e: any) {
+        setError(e?.message || "Failed to load product");
+        setProduct(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProduct();
+  }, [productId]);
+
+  // ✅ Fetch related products
+  useEffect(() => {
+    const fetchRelated = async () => {
+      if (!product?._id || !product.category) return;
+
+      try {
+        const url = new URL(`${API_BASE}/products`);
+        url.searchParams.set("tier", "affordable");
+        url.searchParams.set("category", product.category);
+        url.searchParams.set("limit", "4");
+        url.searchParams.set("excludeId", product._id);
+
+        const res = await fetch(url.toString());
+        if (!res.ok) return;
+
+        const data: ApiProduct[] = await res.json();
+        setRelatedProducts(Array.isArray(data) ? data.map(mapApiProductToUi) : []);
+      } catch {
+        setRelatedProducts([]);
+      }
+    };
+
+    fetchRelated();
+  }, [product]);
+
+  const discount = useMemo(() => {
+    if (!product?.originalPrice) return 0;
+    return Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100);
+  }, [product]);
+
+  if (loading) {
     return (
       <Layout>
         <div className="container mx-auto px-4 py-16 text-center">
-          <h1 className="text-2xl font-bold mb-4">Product not found</h1>
+          <p className="text-lg text-muted-foreground">Loading product...</p>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (error || !product) {
+    return (
+      <Layout>
+        <div className="container mx-auto px-4 py-16 text-center">
+          <h1 className="text-2xl font-bold mb-4">{error || "Product not found"}</h1>
           <Button onClick={() => navigate("/")}>Go Home</Button>
         </div>
       </Layout>
     );
   }
 
-  const discount = product.originalPrice
-    ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
-    : 0;
-
-  // Mock multiple images
-  const images = [
-    product.image,
-    product.image.replace("w=600", "w=601"),
-    product.image.replace("w=600", "w=602"),
-    product.image.replace("w=600", "w=603"),
-  ];
-
-  const relatedProducts = products
-    .filter((p) => p.category === product.category && p.id !== product.id)
-    .slice(0, 4);
-
   return (
     <Layout>
       <div className="container mx-auto px-4 py-8">
         {/* Breadcrumb */}
         <nav className="text-sm text-muted-foreground mb-6">
-          <a href="/" className="hover:text-primary">Home</a>
+          <Link to="/" className="hover:text-primary">
+            Home
+          </Link>
           <span className="mx-2">/</span>
-          <a href={`/categories/${product.category}`} className="hover:text-primary capitalize">
-            {product.category.replace("-", " ")}
-          </a>
+          <Link
+            to={`/categories/${product.category.toLowerCase().replace(/\s+/g, "-")}`}
+            className="hover:text-primary capitalize"
+          >
+            {product.category}
+          </Link>
           <span className="mx-2">/</span>
           <span className="text-foreground">{product.name}</span>
         </nav>
@@ -63,9 +205,8 @@ const ProductDetails = () => {
         <div className="grid lg:grid-cols-2 gap-8 lg:gap-12">
           {/* Gallery */}
           <div className="flex gap-4">
-            {/* Thumbnails */}
             <div className="flex flex-col gap-3">
-              {images.map((img, index) => (
+              {product.images.map((img, index) => (
                 <button
                   key={index}
                   onClick={() => setSelectedImage(index)}
@@ -84,10 +225,9 @@ const ProductDetails = () => {
               ))}
             </div>
 
-            {/* Main image */}
             <div className="flex-1 relative rounded-2xl overflow-hidden bg-muted group">
               <img
-                src={images[selectedImage]}
+                src={product.images[selectedImage] || product.image}
                 alt={product.name}
                 className="w-full aspect-square object-cover transition-transform duration-500 group-hover:scale-110 cursor-zoom-in"
               />
@@ -103,31 +243,11 @@ const ProductDetails = () => {
           <div className="space-y-6">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-foreground">{product.name}</h1>
-              
-              {/* Rating */}
-              <div className="flex items-center gap-2 mt-2">
-                <div className="flex items-center gap-1">
-                  {[...Array(5)].map((_, i) => (
-                    <Star
-                      key={i}
-                      className={`h-4 w-4 ${
-                        i < Math.floor(product.rating)
-                          ? "fill-primary text-primary"
-                          : "fill-muted text-muted"
-                      }`}
-                    />
-                  ))}
-                </div>
-                <span className="font-medium">{product.rating}</span>
-                <span className="text-muted-foreground">({product.reviews} reviews)</span>
-              </div>
             </div>
 
-            {/* Price */}
             <div className="flex items-baseline gap-3">
-              <span className="text-3xl font-bold text-foreground">
-                {formatPrice(product.price)}
-              </span>
+              <span className="text-3xl font-bold text-foreground">{formatPrice(product.price)}</span>
+
               {product.originalPrice && (
                 <>
                   <span className="text-xl text-muted-foreground line-through">
@@ -138,10 +258,10 @@ const ProductDetails = () => {
               )}
             </div>
 
-            {/* Description */}
-            <p className="text-muted-foreground">{product.description}</p>
+            <p className="text-muted-foreground">
+              {product.description || "No description available."}
+            </p>
 
-            {/* Colors */}
             {product.colors && product.colors.length > 0 && (
               <div>
                 <h3 className="font-semibold mb-3">Color</h3>
@@ -156,13 +276,13 @@ const ProductDetails = () => {
                           : "border-border hover:border-primary/50"
                       }`}
                       style={{ backgroundColor: color }}
+                      title={color}
                     />
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Quantity */}
             <div>
               <h3 className="font-semibold mb-3">Quantity</h3>
               <div className="flex items-center gap-3">
@@ -177,23 +297,24 @@ const ProductDetails = () => {
                   <button
                     onClick={() => setQuantity(quantity + 1)}
                     className="p-3 hover:bg-muted transition-colors rounded-r-xl"
+                    disabled={!product.inStock}
                   >
                     <Plus className="h-4 w-4" />
                   </button>
                 </div>
+
                 <span className="text-sm text-muted-foreground">
-                  {product.inStock ? "In Stock" : "Out of Stock"}
+                  {product.inStock ? `In Stock (${product.quantity})` : "Out of Stock"}
                 </span>
               </div>
             </div>
 
-            {/* Actions */}
             <div className="flex gap-3">
               <Button
                 variant="hero"
                 size="lg"
                 className="flex-1"
-                onClick={() => addToCart(product, quantity)}
+                onClick={() => addToCart(product as any, quantity)}
                 disabled={!product.inStock}
               >
                 <ShoppingCart className="h-5 w-5 mr-2" />
@@ -207,7 +328,6 @@ const ProductDetails = () => {
               </Button>
             </div>
 
-            {/* Features */}
             <div className="grid grid-cols-3 gap-4 pt-6 border-t border-border">
               {[
                 { icon: Truck, label: "Free Delivery" },
@@ -225,18 +345,18 @@ const ProductDetails = () => {
           </div>
         </div>
 
-        {/* Specifications */}
+        {/* ✅ Specifications (UPDATED) */}
         <section className="mt-12 md:mt-16">
           <h2 className="text-2xl font-bold mb-6">Specifications</h2>
           <div className="bg-muted/30 rounded-2xl p-6">
             <table className="w-full">
               <tbody className="divide-y divide-border">
                 {[
-                  ["Material", "Solid Wood & Premium Fabric"],
-                  ["Dimensions", '180cm x 90cm x 85cm (L x W x H)'],
-                  ["Weight", "45 kg"],
-                  ["Color Options", product.colors?.length + " colors available"],
-                  ["Warranty", "2 Years"],
+                  ["Material", product.material || "—"],
+                  ["Size", product.size || "—"],
+                  ["Weight", product.weight ? `${product.weight}` : "—"],
+                  ["Color Options", `${product.colors?.length || 0} color available`],
+                  ["Availability", product.inStock ? "In Stock" : "Out of Stock"],
                 ].map(([label, value], index) => (
                   <tr key={index}>
                     <td className="py-3 font-medium text-foreground w-1/3">{label}</td>
@@ -248,112 +368,13 @@ const ProductDetails = () => {
           </div>
         </section>
 
-        {/* Reviews */}
-        <section className="mt-12 md:mt-16">
-          <h2 className="text-2xl font-bold mb-6">Customer Reviews</h2>
-          <div className="grid md:grid-cols-3 gap-8">
-            {/* Summary */}
-            <div className="bg-muted/30 rounded-2xl p-6">
-              <div className="text-center mb-6">
-                <p className="text-5xl font-bold text-primary">{product.rating}</p>
-                <div className="flex justify-center gap-1 mt-2">
-                  {[...Array(5)].map((_, i) => (
-                    <Star
-                      key={i}
-                      className={`h-5 w-5 ${
-                        i < Math.floor(product.rating)
-                          ? "fill-primary text-primary"
-                          : "fill-muted text-muted"
-                      }`}
-                    />
-                  ))}
-                </div>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Based on {product.reviews} reviews
-                </p>
-              </div>
-
-              {/* Rating bars */}
-              {[5, 4, 3, 2, 1].map((star) => (
-                <div key={star} className="flex items-center gap-2 mb-2">
-                  <span className="text-sm w-3">{star}</span>
-                  <Star className="h-4 w-4 fill-primary text-primary" />
-                  <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-primary rounded-full"
-                      style={{ width: `${star === 5 ? 70 : star === 4 ? 20 : 10}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-
-              <Button variant="outline" className="w-full mt-6">
-                Write a Review
-              </Button>
-            </div>
-
-            {/* Reviews list */}
-            <div className="md:col-span-2 space-y-4">
-              {[
-                {
-                  name: "Priya S.",
-                  rating: 5,
-                  date: "2 weeks ago",
-                  comment: "Absolutely love this furniture! The quality exceeded my expectations. Delivery was quick and the assembly was easy.",
-                },
-                {
-                  name: "Rahul M.",
-                  rating: 4,
-                  date: "1 month ago",
-                  comment: "Great value for money. The color matches exactly what was shown in the pictures. Very comfortable and sturdy.",
-                },
-                {
-                  name: "Anita K.",
-                  rating: 5,
-                  date: "2 months ago",
-                  comment: "Perfect addition to our living room. The craftsmanship is excellent and it looks even better in person!",
-                },
-              ].map((review, index) => (
-                <div key={index} className="bg-card p-6 rounded-2xl border border-border">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-                        <span className="font-semibold text-primary">
-                          {review.name.charAt(0)}
-                        </span>
-                      </div>
-                      <div>
-                        <p className="font-medium">{review.name}</p>
-                        <p className="text-xs text-muted-foreground">{review.date}</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-0.5">
-                      {[...Array(5)].map((_, i) => (
-                        <Star
-                          key={i}
-                          className={`h-4 w-4 ${
-                            i < review.rating
-                              ? "fill-primary text-primary"
-                              : "fill-muted text-muted"
-                          }`}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                  <p className="text-muted-foreground">{review.comment}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
         {/* Related Products */}
         {relatedProducts.length > 0 && (
           <section className="mt-12 md:mt-16">
             <h2 className="text-2xl font-bold mb-6">You May Also Like</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {relatedProducts.map((product) => (
-                <ProductCard key={product.id} product={product} />
+              {relatedProducts.map((p) => (
+                <ProductCard key={p._id} product={p as any} />
               ))}
             </div>
           </section>
