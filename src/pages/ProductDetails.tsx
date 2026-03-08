@@ -22,7 +22,7 @@ const API_BASE = "https://api.jsgallor.com/api/affordable";
 type ApiProduct = {
   _id: string;
   name: string;
-  category: string; // "living-room"
+  category: string;
   description?: string;
   price: number;
   originalPrice?: number;
@@ -31,8 +31,6 @@ type ApiProduct = {
   color?: string;
   image: string;
   galleryImages?: string[];
-
-  // ✅ add from backend
   material?: string;
   weight?: string | number;
   size?: string;
@@ -52,8 +50,6 @@ type UiProduct = {
   inStock: boolean;
   colors: string[];
   quantity: number;
-
-  // ✅ add for UI
   material: string;
   weight: string;
   size: string;
@@ -61,8 +57,6 @@ type UiProduct = {
 
 const mapApiProductToUi = (p: ApiProduct): UiProduct => {
   const qty = Number(p.quantity ?? 0);
-
-  // ✅ Stock logic (more reliable)
   const availability = String(p.availability || "").toLowerCase();
   const inStock = qty > 0 && (availability.includes("in stock") || availability === "");
 
@@ -84,8 +78,6 @@ const mapApiProductToUi = (p: ApiProduct): UiProduct => {
     inStock,
     colors: p.color ? [p.color] : [],
     quantity: qty,
-
-    // ✅ map new fields
     material: p.material || "—",
     weight: p.weight ? String(p.weight) : "—",
     size: p.size || "—",
@@ -106,7 +98,6 @@ const ProductDetails = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // ✅ Fetch product by id
   useEffect(() => {
     const fetchProduct = async () => {
       if (!productId) return;
@@ -131,7 +122,6 @@ const ProductDetails = () => {
     fetchProduct();
   }, [productId]);
 
-  // ✅ Fetch related products
   useEffect(() => {
     const fetchRelated = async () => {
       if (!product?._id || !product.category) return;
@@ -161,11 +151,23 @@ const ProductDetails = () => {
     return Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100);
   }, [product]);
 
+  const increaseQty = () => {
+    if (!product?.inStock) return;
+    setQuantity((prev) => {
+      const maxQty = product.quantity > 0 ? product.quantity : prev + 1;
+      return prev < maxQty ? prev + 1 : prev;
+    });
+  };
+
+  const decreaseQty = () => {
+    setQuantity((prev) => Math.max(1, prev - 1));
+  };
+
   if (loading) {
     return (
       <Layout>
-        <div className="container mx-auto px-4 py-16 text-center">
-          <p className="text-lg text-muted-foreground">Loading product...</p>
+        <div className="container mx-auto px-4 py-12 sm:py-16 text-center">
+          <p className="text-base sm:text-lg text-muted-foreground">Loading product...</p>
         </div>
       </Layout>
     );
@@ -174,8 +176,8 @@ const ProductDetails = () => {
   if (error || !product) {
     return (
       <Layout>
-        <div className="container mx-auto px-4 py-16 text-center">
-          <h1 className="text-2xl font-bold mb-4">{error || "Product not found"}</h1>
+        <div className="container mx-auto px-4 py-12 sm:py-16 text-center">
+          <h1 className="text-xl sm:text-2xl font-bold mb-4">{error || "Product not found"}</h1>
           <Button onClick={() => navigate("/")}>Go Home</Button>
         </div>
       </Layout>
@@ -184,9 +186,9 @@ const ProductDetails = () => {
 
   return (
     <Layout>
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-6 sm:py-8">
         {/* Breadcrumb */}
-        <nav className="text-sm text-muted-foreground mb-6">
+        <nav className="mb-5 sm:mb-6 flex flex-wrap items-center gap-y-1 text-xs sm:text-sm text-muted-foreground">
           <Link to="/" className="hover:text-primary">
             Home
           </Link>
@@ -198,19 +200,20 @@ const ProductDetails = () => {
             {product.category}
           </Link>
           <span className="mx-2">/</span>
-          <span className="text-foreground">{product.name}</span>
+          <span className="text-foreground break-words">{product.name}</span>
         </nav>
 
         {/* Product Section */}
-        <div className="grid lg:grid-cols-2 gap-8 lg:gap-12">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
           {/* Gallery */}
-          <div className="flex gap-4">
-            <div className="flex flex-col gap-3">
+          <div className="flex flex-col-reverse sm:flex-row gap-4">
+            {/* Thumbnails */}
+            <div className="flex sm:flex-col gap-3 overflow-x-auto sm:overflow-visible pb-1 sm:pb-0">
               {product.images.map((img, index) => (
                 <button
                   key={index}
                   onClick={() => setSelectedImage(index)}
-                  className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition-all ${
+                  className={`shrink-0 w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden border-2 transition-all ${
                     selectedImage === index
                       ? "border-primary shadow-glow"
                       : "border-border hover:border-primary/50"
@@ -225,14 +228,15 @@ const ProductDetails = () => {
               ))}
             </div>
 
+            {/* Main Image */}
             <div className="flex-1 relative rounded-2xl overflow-hidden bg-muted group">
               <img
                 src={product.images[selectedImage] || product.image}
                 alt={product.name}
-                className="w-full aspect-square object-cover transition-transform duration-500 group-hover:scale-110 cursor-zoom-in"
+                className="w-full aspect-square object-cover transition-transform duration-500 group-hover:scale-105 cursor-zoom-in"
               />
               {discount > 0 && (
-                <Badge className="absolute top-4 left-4 bg-destructive text-destructive-foreground">
+                <Badge className="absolute top-3 left-3 sm:top-4 sm:left-4 bg-destructive text-destructive-foreground">
                   -{discount}% OFF
                 </Badge>
               )}
@@ -240,17 +244,21 @@ const ProductDetails = () => {
           </div>
 
           {/* Details */}
-          <div className="space-y-6">
+          <div className="space-y-5 sm:space-y-6">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-foreground">{product.name}</h1>
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-foreground leading-tight">
+                {product.name}
+              </h1>
             </div>
 
-            <div className="flex items-baseline gap-3">
-              <span className="text-3xl font-bold text-foreground">{formatPrice(product.price)}</span>
+            <div className="flex flex-wrap items-baseline gap-2 sm:gap-3">
+              <span className="text-2xl sm:text-3xl font-bold text-foreground">
+                {formatPrice(product.price)}
+              </span>
 
               {product.originalPrice && (
                 <>
-                  <span className="text-xl text-muted-foreground line-through">
+                  <span className="text-base sm:text-xl text-muted-foreground line-through">
                     {formatPrice(product.originalPrice)}
                   </span>
                   <Badge variant="secondary">{discount}% off</Badge>
@@ -258,19 +266,19 @@ const ProductDetails = () => {
               )}
             </div>
 
-            <p className="text-muted-foreground">
+            <p className="text-sm sm:text-base text-muted-foreground leading-6 sm:leading-7">
               {product.description || "No description available."}
             </p>
 
             {product.colors && product.colors.length > 0 && (
               <div>
-                <h3 className="font-semibold mb-3">Color</h3>
-                <div className="flex gap-2">
+                <h3 className="font-semibold mb-3 text-sm sm:text-base">Color</h3>
+                <div className="flex flex-wrap gap-2">
                   {product.colors.map((color, index) => (
                     <button
                       key={index}
                       onClick={() => setSelectedColor(color)}
-                      className={`w-10 h-10 rounded-xl border-2 transition-all ${
+                      className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl border-2 transition-all ${
                         selectedColor === color
                           ? "border-primary ring-2 ring-primary/30 scale-110"
                           : "border-border hover:border-primary/50"
@@ -284,20 +292,24 @@ const ProductDetails = () => {
             )}
 
             <div>
-              <h3 className="font-semibold mb-3">Quantity</h3>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center border border-border rounded-xl">
+              <h3 className="font-semibold mb-3 text-sm sm:text-base">Quantity</h3>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <div className="flex items-center border border-border rounded-xl w-fit">
                   <button
-                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                    onClick={decreaseQty}
                     className="p-3 hover:bg-muted transition-colors rounded-l-xl"
+                    aria-label="Decrease quantity"
                   >
                     <Minus className="h-4 w-4" />
                   </button>
+
                   <span className="w-12 text-center font-medium">{quantity}</span>
+
                   <button
-                    onClick={() => setQuantity(quantity + 1)}
-                    className="p-3 hover:bg-muted transition-colors rounded-r-xl"
-                    disabled={!product.inStock}
+                    onClick={increaseQty}
+                    className="p-3 hover:bg-muted transition-colors rounded-r-xl disabled:opacity-50"
+                    disabled={!product.inStock || quantity >= product.quantity}
+                    aria-label="Increase quantity"
                   >
                     <Plus className="h-4 w-4" />
                   </button>
@@ -309,58 +321,67 @@ const ProductDetails = () => {
               </div>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <Button
                 variant="hero"
                 size="lg"
-                className="flex-1"
+                className="flex-1 w-full"
                 onClick={() => addToCart(product as any, quantity)}
                 disabled={!product.inStock}
               >
                 <ShoppingCart className="h-5 w-5 mr-2" />
                 Add to Cart
               </Button>
-              <Button variant="outline" size="lg">
-                <Heart className="h-5 w-5" />
-              </Button>
-              <Button variant="outline" size="lg">
-                <Share2 className="h-5 w-5" />
-              </Button>
+
+              <div className="grid grid-cols-2 sm:flex gap-3">
+                <Button variant="outline" size="lg" className="w-full sm:w-auto">
+                  <Heart className="h-5 w-5" />
+                </Button>
+                <Button variant="outline" size="lg" className="w-full sm:w-auto">
+                  <Share2 className="h-5 w-5" />
+                </Button>
+              </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4 pt-6 border-t border-border">
+            <div className="grid grid-cols-1 min-[420px]:grid-cols-3 gap-4 pt-6 border-t border-border">
               {[
                 { icon: Truck, label: "Free Delivery" },
                 { icon: Shield, label: "2 Year Warranty" },
                 { icon: RefreshCw, label: "Easy Returns" },
               ].map((feature, index) => (
-                <div key={index} className="text-center">
+                <div
+                  key={index}
+                  className="text-center rounded-xl bg-muted/30 p-3 sm:p-0 sm:bg-transparent"
+                >
                   <div className="w-10 h-10 mx-auto rounded-xl bg-primary/10 flex items-center justify-center mb-2">
                     <feature.icon className="h-5 w-5 text-primary" />
                   </div>
-                  <span className="text-xs text-muted-foreground">{feature.label}</span>
+                  <span className="text-xs sm:text-sm text-muted-foreground">{feature.label}</span>
                 </div>
               ))}
             </div>
           </div>
         </div>
 
-        {/* ✅ Specifications (UPDATED) */}
+        {/* Specifications */}
         <section className="mt-12 md:mt-16">
-          <h2 className="text-2xl font-bold mb-6">Specifications</h2>
-          <div className="bg-muted/30 rounded-2xl p-6">
-            <table className="w-full">
+          <h2 className="text-xl sm:text-2xl font-bold mb-5 sm:mb-6">Specifications</h2>
+
+          <div className="bg-muted/30 rounded-2xl p-4 sm:p-6 overflow-x-auto">
+            <table className="w-full min-w-[520px] sm:min-w-full">
               <tbody className="divide-y divide-border">
                 {[
                   ["Material", product.material || "—"],
                   ["Size", product.size || "—"],
-                  ["Weight", product.weight ? `${product.weight}` : "—"],
+                  ["Weight", product.weight || "—"],
                   ["Color Options", `${product.colors?.length || 0} color available`],
                   ["Availability", product.inStock ? "In Stock" : "Out of Stock"],
                 ].map(([label, value], index) => (
                   <tr key={index}>
-                    <td className="py-3 font-medium text-foreground w-1/3">{label}</td>
-                    <td className="py-3 text-muted-foreground">{value}</td>
+                    <td className="py-3 pr-4 font-medium text-foreground w-[40%] sm:w-1/3">
+                      {label}
+                    </td>
+                    <td className="py-3 text-muted-foreground break-words">{value}</td>
                   </tr>
                 ))}
               </tbody>
@@ -371,8 +392,8 @@ const ProductDetails = () => {
         {/* Related Products */}
         {relatedProducts.length > 0 && (
           <section className="mt-12 md:mt-16">
-            <h2 className="text-2xl font-bold mb-6">You May Also Like</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <h2 className="text-xl sm:text-2xl font-bold mb-5 sm:mb-6">You May Also Like</h2>
+            <div className="grid grid-cols-1 min-[480px]:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
               {relatedProducts.map((p) => (
                 <ProductCard key={p._id} product={p as any} />
               ))}

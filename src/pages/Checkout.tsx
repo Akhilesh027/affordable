@@ -1,10 +1,4 @@
 // src/pages/Checkout.tsx
-// ✅ Updated: Razorpay integration (Online Payment) + COD
-// ✅ Keeps: Address flow + Coupon via backend (/api/affordable/coupons/apply)
-// ✅ Flow:
-//    - COD => directly creates order (/api/affordable/orders)
-//    - Online (Razorpay) => creates Razorpay order -> opens checkout -> verifies -> creates order
-
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,9 +29,6 @@ import { toast } from "sonner";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "https://api.jsgallor.com";
 
-// -----------------------------
-// Types
-// -----------------------------
 type AddressForm = {
   fullName: string;
   phone: string;
@@ -59,11 +50,9 @@ type SavedAddress = AddressForm & {
 
 type PaymentMethod = "cod" | "razorpay";
 
-// ✅ coupon apply response type (from backend)
 type ApplyCouponResponse = {
   success: boolean;
   message?: string;
-
   coupon?: {
     id: string;
     code: string;
@@ -72,23 +61,18 @@ type ApplyCouponResponse = {
     maxDiscount?: number;
     website?: string;
   };
-
-  discount?: number; // product discount
-  shippingDiscount?: number; // shipping discount
+  discount?: number;
+  shippingDiscount?: number;
   finalAmount?: number;
   finalShipping?: number;
 };
 
-// Razorpay window type
 declare global {
   interface Window {
     Razorpay?: any;
   }
 }
 
-// -----------------------------
-// Razorpay helpers
-// -----------------------------
 const loadRazorpayScript = () =>
   new Promise<boolean>((resolve) => {
     if (window.Razorpay) return resolve(true);
@@ -105,24 +89,18 @@ const loadRazorpayScript = () =>
     document.body.appendChild(script);
   });
 
-// -----------------------------
-// Component
-// -----------------------------
 const Checkout = () => {
   const navigate = useNavigate();
   const { items, updateQuantity, removeFromCart, subtotal, clearCart } = useCart();
 
-  // ✅ Coupon
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<ApplyCouponResponse["coupon"] | null>(null);
   const [discount, setDiscount] = useState(0);
   const [shippingDiscount, setShippingDiscount] = useState(0);
   const [applyingCoupon, setApplyingCoupon] = useState(false);
 
-  // Step UI
   const [step, setStep] = useState<1 | 2 | 3>(1);
 
-  // Address (new)
   const [address, setAddress] = useState<AddressForm>({
     fullName: "",
     phone: "",
@@ -135,33 +113,27 @@ const Checkout = () => {
     landmark: "",
   });
 
-  // Saved addresses
   const [addresses, setAddresses] = useState<SavedAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string>("");
   const [showAddAddress, setShowAddAddress] = useState(false);
   const [loadingAddresses, setLoadingAddresses] = useState(false);
   const [savingAddress, setSavingAddress] = useState(false);
 
-  // Payment
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cod");
   const [placingOrder, setPlacingOrder] = useState(false);
 
-  // original shipping rule
   const shippingCost = useMemo(() => (subtotal >= 5000 ? 0 : 299), [subtotal]);
 
-  // ✅ final shipping after coupon
   const finalShipping = useMemo(
     () => Math.max(0, shippingCost - shippingDiscount),
     [shippingCost, shippingDiscount]
   );
 
-  // ✅ final total
   const total = useMemo(
     () => Math.max(0, subtotal - discount + finalShipping),
     [subtotal, discount, finalShipping]
   );
 
-  // ---------- AUTH ----------
   const getAuth = () => {
     const token = localStorage.getItem("affordable_token");
     const userRaw = localStorage.getItem("affordable_user");
@@ -170,7 +142,6 @@ const Checkout = () => {
     return { token, userId, user };
   };
 
-  // ---------- ADDRESS API ----------
   const fetchAddresses = async () => {
     const { token, userId } = getAuth();
     if (!token || !userId) return;
@@ -268,20 +239,15 @@ const Checkout = () => {
     }
   };
 
-  // Load addresses on step 2
   useEffect(() => {
     if (step === 2) fetchAddresses();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
-  // ✅ If cart changes, re-validate coupon (to keep discount correct)
   useEffect(() => {
     if (!appliedCoupon?.code) return;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     reApplyCoupon();
   }, [subtotal, shippingCost]);
 
-  // ---------- COUPON APPLY (BACKEND) ----------
   const applyCoupon = async () => {
     const code = couponCode.trim().toUpperCase();
     if (!code) {
@@ -289,7 +255,7 @@ const Checkout = () => {
       return;
     }
 
-    const { userId } = getAuth(); // optional (perUserLimit)
+    const { userId } = getAuth();
 
     try {
       setApplyingCoupon(true);
@@ -361,7 +327,6 @@ const Checkout = () => {
     toast.success("Coupon removed");
   };
 
-  // ---------- STEP NAV ----------
   const handleProceedFromCart = () => {
     if (!items?.length) {
       toast.error("Your cart is empty");
@@ -382,9 +347,6 @@ const Checkout = () => {
     toast.error("Please select an address or add a new one");
   };
 
-  // -----------------------------
-  // Build Order Payload (shared)
-  // -----------------------------
   const buildOrderPayload = (args?: {
     payment?: any;
     razorpay?: {
@@ -416,7 +378,6 @@ const Checkout = () => {
       userId,
       addressId: selectedAddressId,
       items: orderItems,
-
       coupon: appliedCoupon?.code
         ? {
             code: appliedCoupon.code,
@@ -424,7 +385,6 @@ const Checkout = () => {
             type: appliedCoupon.type,
           }
         : undefined,
-
       pricing: {
         subtotal,
         discount,
@@ -432,9 +392,8 @@ const Checkout = () => {
         shippingDiscount,
         total,
       },
-
       payment: {
-        method: paymentMethod, // "cod" | "razorpay"
+        method: paymentMethod,
         status: args?.paymentStatus || (paymentMethod === "cod" ? "pending" : "paid"),
         ...(args?.razorpay
           ? {
@@ -448,9 +407,6 @@ const Checkout = () => {
     };
   };
 
-  // -----------------------------
-  // Create Order API call
-  // -----------------------------
   const createOrderInBackend = async (payload: any) => {
     const { token } = getAuth();
     const res = await fetch(`${API_BASE}/api/affordable/orders`, {
@@ -467,9 +423,6 @@ const Checkout = () => {
     return data;
   };
 
-  // -----------------------------
-  // Razorpay Payment Flow
-  // -----------------------------
   const payWithRazorpay = async () => {
     const { token, userId, user } = getAuth();
     if (!token || !userId) {
@@ -477,19 +430,14 @@ const Checkout = () => {
       return;
     }
 
-    // ensure script
     const ok = await loadRazorpayScript();
     if (!ok) throw new Error("Razorpay SDK failed to load");
 
-    // create razorpay order from backend
-    // ✅ You need these endpoints in backend:
-    // POST /api/payments/create-order  { amount }
-    // POST /api/payments/verify        { razorpay_order_id, razorpay_payment_id, razorpay_signature }
     const createRes = await fetch(`${API_BASE}/api/payments/create-order`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        amount: Number(total), // rupees
+        amount: Number(total),
         currency: "INR",
         receipt: `rcpt_${Date.now()}`,
         notes: { website: "affordable" },
@@ -505,7 +453,7 @@ const Checkout = () => {
 
     const options: any = {
       key: keyId,
-      amount: order.amount, // paise
+      amount: order.amount,
       currency: order.currency,
       name: "JSGALORE",
       description: "Order Payment",
@@ -518,7 +466,6 @@ const Checkout = () => {
       theme: { color: "#111827" },
       handler: async (response: any) => {
         try {
-          // 1) verify on backend
           const verifyRes = await fetch(`${API_BASE}/api/payments/verify`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -530,7 +477,6 @@ const Checkout = () => {
             throw new Error(verifyData?.message || "Payment verification failed");
           }
 
-          // 2) create your ecommerce order after payment success
           const payload = buildOrderPayload({
             razorpay: response,
             paymentStatus: "paid",
@@ -573,7 +519,6 @@ const Checkout = () => {
     rzp.open();
   };
 
-  // ---------- ORDER API ----------
   const handlePlaceOrder = async () => {
     const { token, userId } = getAuth();
     if (!token || !userId) {
@@ -592,7 +537,6 @@ const Checkout = () => {
 
       let addressIdToUse = selectedAddressId;
 
-      // if user is adding new address but not saved yet
       if (!addressIdToUse && showAddAddress) {
         await saveNewAddress();
         await fetchAddresses();
@@ -606,7 +550,6 @@ const Checkout = () => {
         return;
       }
 
-      // ---- COD (direct order) ----
       if (paymentMethod === "cod") {
         const payload = {
           ...buildOrderPayload({ paymentStatus: "pending" }),
@@ -633,7 +576,6 @@ const Checkout = () => {
         return;
       }
 
-      // ---- Razorpay (online) ----
       await payWithRazorpay();
     } catch (e: any) {
       toast.error(e?.message || "Order failed");
@@ -641,17 +583,16 @@ const Checkout = () => {
     }
   };
 
-  // ---------- EMPTY CART ----------
   if (!items || items.length === 0) {
     return (
       <Layout>
-        <div className="container mx-auto px-4 py-16">
+        <div className="container mx-auto px-4 py-12 sm:py-16">
           <div className="text-center max-w-md mx-auto">
-            <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-muted flex items-center justify-center">
-              <ShoppingBag className="h-12 w-12 text-muted-foreground" />
+            <div className="w-20 h-20 sm:w-24 sm:h-24 mx-auto mb-6 rounded-full bg-muted flex items-center justify-center">
+              <ShoppingBag className="h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground" />
             </div>
             <h1 className="text-2xl font-bold mb-2">Your cart is empty</h1>
-            <p className="text-muted-foreground mb-6">
+            <p className="text-sm sm:text-base text-muted-foreground mb-6">
               Looks like you haven&apos;t added any items to your cart yet.
             </p>
             <Link to="/">
@@ -667,9 +608,9 @@ const Checkout = () => {
 
   return (
     <Layout>
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-6 sm:py-8">
         {/* Breadcrumb */}
-        <nav className="text-sm text-muted-foreground mb-6">
+        <nav className="text-xs sm:text-sm text-muted-foreground mb-5 sm:mb-6 flex flex-wrap items-center gap-y-1">
           <Link to="/" className="hover:text-primary">
             Home
           </Link>
@@ -677,18 +618,18 @@ const Checkout = () => {
           <span className="text-foreground">Checkout</span>
         </nav>
 
-        <div className="flex flex-col gap-2 mb-8">
-          <h1 className="text-3xl font-bold">Checkout</h1>
+        <div className="flex flex-col gap-3 mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold">Checkout</h1>
 
           {/* Stepper */}
-          <div className="flex items-center gap-3 text-sm">
+          <div className="grid grid-cols-3 gap-2 sm:flex sm:items-center sm:gap-3 text-xs sm:text-sm">
             <div
-              className={`flex items-center gap-2 ${
+              className={`flex flex-col sm:flex-row items-center gap-2 ${
                 step >= 1 ? "text-foreground" : "text-muted-foreground"
               }`}
             >
               <div
-                className={`w-7 h-7 rounded-full flex items-center justify-center border ${
+                className={`w-7 h-7 rounded-full flex items-center justify-center border text-xs sm:text-sm ${
                   step >= 1
                     ? "bg-primary text-primary-foreground border-primary"
                     : "border-border"
@@ -696,16 +637,18 @@ const Checkout = () => {
               >
                 1
               </div>
-              <span className="font-medium">Cart</span>
+              <span className="font-medium text-center">Cart</span>
             </div>
-            <div className="h-px flex-1 bg-border" />
+
+            <div className="hidden sm:block h-px flex-1 bg-border" />
+
             <div
-              className={`flex items-center gap-2 ${
+              className={`flex flex-col sm:flex-row items-center gap-2 ${
                 step >= 2 ? "text-foreground" : "text-muted-foreground"
               }`}
             >
               <div
-                className={`w-7 h-7 rounded-full flex items-center justify-center border ${
+                className={`w-7 h-7 rounded-full flex items-center justify-center border text-xs sm:text-sm ${
                   step >= 2
                     ? "bg-primary text-primary-foreground border-primary"
                     : "border-border"
@@ -713,16 +656,18 @@ const Checkout = () => {
               >
                 2
               </div>
-              <span className="font-medium">Address</span>
+              <span className="font-medium text-center">Address</span>
             </div>
-            <div className="h-px flex-1 bg-border" />
+
+            <div className="hidden sm:block h-px flex-1 bg-border" />
+
             <div
-              className={`flex items-center gap-2 ${
+              className={`flex flex-col sm:flex-row items-center gap-2 ${
                 step >= 3 ? "text-foreground" : "text-muted-foreground"
               }`}
             >
               <div
-                className={`w-7 h-7 rounded-full flex items-center justify-center border ${
+                className={`w-7 h-7 rounded-full flex items-center justify-center border text-xs sm:text-sm ${
                   step >= 3
                     ? "bg-primary text-primary-foreground border-primary"
                     : "border-border"
@@ -730,15 +675,15 @@ const Checkout = () => {
               >
                 3
               </div>
-              <span className="font-medium">Payment</span>
+              <span className="font-medium text-center">Payment</span>
             </div>
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
           {/* LEFT SIDE */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* ===== STEP 1: CART ===== */}
+          <div className="lg:col-span-2 space-y-6 order-2 lg:order-1">
+            {/* STEP 1 */}
             {step === 1 && (
               <div className="space-y-4">
                 <div className="hidden md:grid grid-cols-12 gap-4 px-4 py-2 bg-muted rounded-xl text-sm font-medium text-muted-foreground">
@@ -760,86 +705,89 @@ const Checkout = () => {
                   return (
                     <div
                       key={pid}
-                      className="grid md:grid-cols-12 gap-4 p-4 bg-card rounded-2xl border border-border items-center"
+                      className="p-4 bg-card rounded-2xl border border-border"
                     >
-                      <div className="md:col-span-5 flex items-center gap-4">
-                        <Link to={`/product/${pid}`}>
-                          <img
-                            src={image}
-                            alt={name}
-                            className="w-20 h-20 rounded-xl object-cover"
-                          />
-                        </Link>
-                        <div>
-                          <Link
-                            to={`/product/${pid}`}
-                            className="font-medium hover:text-primary transition-colors"
-                          >
-                            {name}
+                      <div className="flex flex-col md:grid md:grid-cols-12 gap-4 md:items-center">
+                        <div className="md:col-span-5 flex items-start sm:items-center gap-3 sm:gap-4">
+                          <Link to={`/product/${pid}`} className="shrink-0">
+                            <img
+                              src={image}
+                              alt={name}
+                              className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl object-cover"
+                            />
                           </Link>
-                          {category && (
-                            <p className="text-sm text-muted-foreground capitalize">
-                              {String(category).replace(/-/g, " ")}
-                            </p>
-                          )}
-                          {!inStock && (
-                            <p className="text-xs text-destructive mt-1">Out of Stock</p>
-                          )}
+
+                          <div className="min-w-0">
+                            <Link
+                              to={`/product/${pid}`}
+                              className="font-medium hover:text-primary transition-colors line-clamp-2"
+                            >
+                              {name}
+                            </Link>
+                            {category && (
+                              <p className="text-sm text-muted-foreground capitalize">
+                                {String(category).replace(/-/g, " ")}
+                              </p>
+                            )}
+                            {!inStock && (
+                              <p className="text-xs text-destructive mt-1">Out of Stock</p>
+                            )}
+                          </div>
                         </div>
-                      </div>
 
-                      <div className="md:col-span-2 text-center">
-                        <span className="md:hidden text-sm text-muted-foreground mr-2">
-                          Price:
-                        </span>
-                        <span className="font-medium">{formatPrice(price)}</span>
-                      </div>
+                        <div className="md:col-span-2 flex justify-between md:block md:text-center">
+                          <span className="md:hidden text-sm text-muted-foreground">Price</span>
+                          <span className="font-medium">{formatPrice(price)}</span>
+                        </div>
 
-                      <div className="md:col-span-3 flex items-center justify-center gap-2">
-                        <div className="flex items-center border border-border rounded-xl">
-                          <button
-                            onClick={() => updateQuantity(pid, item.quantity - 1)}
-                            className="p-2 hover:bg-muted transition-colors rounded-l-xl"
-                            disabled={item.quantity <= 1}
-                          >
-                            <Minus className="h-4 w-4" />
-                          </button>
-                          <span className="w-10 text-center font-medium">
-                            {item.quantity}
+                        <div className="md:col-span-3 flex items-center justify-between md:justify-center gap-3">
+                          <span className="md:hidden text-sm text-muted-foreground">Quantity</span>
+
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center border border-border rounded-xl">
+                              <button
+                                onClick={() => updateQuantity(pid, item.quantity - 1)}
+                                className="p-2 hover:bg-muted transition-colors rounded-l-xl"
+                                disabled={item.quantity <= 1}
+                              >
+                                <Minus className="h-4 w-4" />
+                              </button>
+                              <span className="w-10 text-center font-medium">
+                                {item.quantity}
+                              </span>
+                              <button
+                                onClick={() => updateQuantity(pid, item.quantity + 1)}
+                                className="p-2 hover:bg-muted transition-colors rounded-r-xl"
+                              >
+                                <Plus className="h-4 w-4" />
+                              </button>
+                            </div>
+
+                            <button
+                              onClick={() => removeFromCart(pid)}
+                              className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                              title="Remove item"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="md:col-span-2 flex justify-between md:block md:text-right">
+                          <span className="md:hidden text-sm text-muted-foreground">Subtotal</span>
+                          <span className="font-bold">
+                            {formatPrice(price * item.quantity)}
                           </span>
-                          <button
-                            onClick={() => updateQuantity(pid, item.quantity + 1)}
-                            className="p-2 hover:bg-muted transition-colors rounded-r-xl"
-                          >
-                            <Plus className="h-4 w-4" />
-                          </button>
                         </div>
-
-                        <button
-                          onClick={() => removeFromCart(pid)}
-                          className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
-                          title="Remove item"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-
-                      <div className="md:col-span-2 text-right">
-                        <span className="md:hidden text-sm text-muted-foreground mr-2">
-                          Subtotal:
-                        </span>
-                        <span className="font-bold">
-                          {formatPrice(price * item.quantity)}
-                        </span>
                       </div>
                     </div>
                   );
                 })}
 
-                {/* ✅ Coupon */}
+                {/* Coupon */}
                 <div className="mt-6 space-y-2">
-                  <div className="flex gap-2">
-                    <div className="relative flex-1 max-w-sm">
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <div className="relative flex-1">
                       <Tag className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
                         type="text"
@@ -856,6 +804,7 @@ const Checkout = () => {
                         variant="outline"
                         onClick={applyCoupon}
                         disabled={applyingCoupon}
+                        className="w-full sm:w-auto"
                       >
                         {applyingCoupon ? "Applying..." : "Apply"}
                       </Button>
@@ -863,7 +812,7 @@ const Checkout = () => {
                       <Button
                         variant="outline"
                         onClick={removeCoupon}
-                        className="gap-2"
+                        className="gap-2 w-full sm:w-auto"
                       >
                         <XCircle className="h-4 w-4" />
                         Remove
@@ -873,8 +822,7 @@ const Checkout = () => {
 
                   {appliedCoupon ? (
                     <div className="text-sm text-green-600">
-                      Applied <span className="font-semibold">{appliedCoupon.code}</span>{" "}
-                      • Saved{" "}
+                      Applied <span className="font-semibold">{appliedCoupon.code}</span> • Saved{" "}
                       <span className="font-semibold">
                         {formatPrice(discount + shippingDiscount)}
                       </span>
@@ -886,30 +834,32 @@ const Checkout = () => {
                   )}
                 </div>
 
-                <div className="flex justify-end gap-2 pt-2">
-                  <Link to="/">
-                    <Button variant="ghost">Continue Shopping</Button>
+                <div className="flex flex-col sm:flex-row justify-end gap-2 pt-2">
+                  <Link to="/" className="w-full sm:w-auto">
+                    <Button variant="ghost" className="w-full">
+                      Continue Shopping
+                    </Button>
                   </Link>
-                  <Button variant="hero" onClick={handleProceedFromCart}>
+                  <Button variant="hero" onClick={handleProceedFromCart} className="w-full sm:w-auto">
                     Continue to Address
                   </Button>
                 </div>
               </div>
             )}
 
-            {/* ===== STEP 2: ADDRESS ===== */}
+            {/* STEP 2 */}
             {step === 2 && (
-              <div className="bg-card border border-border rounded-2xl p-6 space-y-5">
-                <div className="flex items-center justify-between gap-3">
+              <div className="bg-card border border-border rounded-2xl p-4 sm:p-6 space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <MapPin className="h-5 w-5 text-primary" />
-                    <h2 className="text-xl font-bold">Delivery Address</h2>
+                    <h2 className="text-lg sm:text-xl font-bold">Delivery Address</h2>
                   </div>
 
                   <Button
                     variant="outline"
                     onClick={() => setShowAddAddress((s) => !s)}
-                    className="gap-2"
+                    className="gap-2 w-full sm:w-auto"
                   >
                     <PlusCircle className="h-4 w-4" />
                     {showAddAddress ? "Close" : "Add Address"}
@@ -918,11 +868,9 @@ const Checkout = () => {
 
                 <div className="space-y-3">
                   {loadingAddresses ? (
-                    <div className="text-sm text-muted-foreground">
-                      Loading addresses...
-                    </div>
+                    <div className="text-sm text-muted-foreground">Loading addresses...</div>
                   ) : addresses.length > 0 ? (
-                    <div className="grid md:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {addresses.map((a) => (
                         <button
                           key={a._id}
@@ -935,24 +883,24 @@ const Checkout = () => {
                           }`}
                         >
                           <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <p className="font-semibold">{a.fullName}</p>
+                            <div className="min-w-0">
+                              <p className="font-semibold break-words">{a.fullName}</p>
                               <p className="text-sm text-muted-foreground">{a.phone}</p>
                             </div>
                             {selectedAddressId === a._id && (
-                              <CheckCircle2 className="h-5 w-5 text-primary" />
+                              <CheckCircle2 className="h-5 w-5 text-primary shrink-0" />
                             )}
                           </div>
 
-                          <p className="text-sm mt-2">
+                          <p className="text-sm mt-2 break-words">
                             {a.addressLine1}
                             {a.addressLine2 ? `, ${a.addressLine2}` : ""}
                           </p>
-                          <p className="text-sm">
+                          <p className="text-sm break-words">
                             {a.city}, {a.state} - {a.pincode}
                           </p>
                           {a.landmark && (
-                            <p className="text-xs text-muted-foreground mt-1">
+                            <p className="text-xs text-muted-foreground mt-1 break-words">
                               Landmark: {a.landmark}
                             </p>
                           )}
@@ -978,7 +926,7 @@ const Checkout = () => {
                       <p className="font-semibold">Add New Address</p>
                     </div>
 
-                    <div className="grid md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="relative">
                         <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
@@ -1008,7 +956,7 @@ const Checkout = () => {
                       </div>
 
                       <div className="relative md:col-span-2">
-                        <Home className="absolute left-3 top-4 h-4 w-4 text-muted-foreground" />
+                        <Home className="absolute left-3 top-1/2 md:top-4 -translate-y-1/2 md:translate-y-0 h-4 w-4 text-muted-foreground" />
                         <Input
                           className="pl-10"
                           placeholder="Address Line 1 *"
@@ -1042,6 +990,7 @@ const Checkout = () => {
                           setAddress((p) => ({ ...p, city: e.target.value }))
                         }
                       />
+
                       <Input
                         placeholder="State *"
                         value={address.state}
@@ -1085,7 +1034,7 @@ const Checkout = () => {
                         variant="hero"
                         onClick={saveNewAddress}
                         disabled={savingAddress}
-                        className="gap-2"
+                        className="gap-2 w-full sm:w-auto"
                       >
                         {savingAddress ? "Saving..." : "Save Address"}
                       </Button>
@@ -1093,27 +1042,26 @@ const Checkout = () => {
                   </div>
                 )}
 
-                <div className="flex justify-between gap-2 pt-1">
-                  <Button variant="outline" onClick={() => setStep(1)}>
+                <div className="flex flex-col-reverse sm:flex-row justify-between gap-2 pt-1">
+                  <Button variant="outline" onClick={() => setStep(1)} className="w-full sm:w-auto">
                     Back to Cart
                   </Button>
-                  <Button variant="hero" onClick={handleProceedFromAddress}>
+                  <Button variant="hero" onClick={handleProceedFromAddress} className="w-full sm:w-auto">
                     Continue to Payment
                   </Button>
                 </div>
               </div>
             )}
 
-            {/* ===== STEP 3: PAYMENT ===== */}
+            {/* STEP 3 */}
             {step === 3 && (
-              <div className="bg-card border border-border rounded-2xl p-6 space-y-6">
+              <div className="bg-card border border-border rounded-2xl p-4 sm:p-6 space-y-6">
                 <div className="flex items-center gap-2">
                   <CreditCard className="h-5 w-5 text-primary" />
-                  <h2 className="text-xl font-bold">Payment</h2>
+                  <h2 className="text-lg sm:text-xl font-bold">Payment</h2>
                 </div>
 
-                {/* Payment methods */}
-                <div className="grid md:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <button
                     onClick={() => setPaymentMethod("cod")}
                     className={`p-4 rounded-2xl border text-left transition-colors ${
@@ -1149,15 +1097,20 @@ const Checkout = () => {
                   </button>
                 </div>
 
-                <div className="flex justify-between gap-2">
-                  <Button variant="outline" onClick={() => setStep(2)} disabled={placingOrder}>
+                <div className="flex flex-col-reverse sm:flex-row justify-between gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setStep(2)}
+                    disabled={placingOrder}
+                    className="w-full sm:w-auto"
+                  >
                     Back to Address
                   </Button>
 
                   <Button
                     variant="hero"
                     onClick={handlePlaceOrder}
-                    className="min-w-[200px]"
+                    className="w-full sm:w-auto sm:min-w-[200px]"
                     disabled={placingOrder}
                   >
                     {placingOrder ? (
@@ -1177,13 +1130,13 @@ const Checkout = () => {
             )}
           </div>
 
-          {/* RIGHT SIDE (Order Summary) */}
-          <div className="lg:col-span-1">
-            <div className="bg-card border border-border rounded-2xl p-6 sticky top-24">
-              <h2 className="text-xl font-bold mb-6">Order Summary</h2>
+          {/* RIGHT SIDE */}
+          <div className="lg:col-span-1 order-1 lg:order-2">
+            <div className="bg-card border border-border rounded-2xl p-4 sm:p-6 lg:sticky lg:top-24">
+              <h2 className="text-lg sm:text-xl font-bold mb-5 sm:mb-6">Order Summary</h2>
 
-              <div className="flex items-center gap-3 p-3 bg-amber-light/50 rounded-xl mb-6">
-                <Truck className="h-5 w-5 text-primary" />
+              <div className="flex items-start gap-3 p-3 bg-amber-light/50 rounded-xl mb-6">
+                <Truck className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                 <div className="text-sm">
                   {subtotal >= 5000 ? (
                     <span className="text-green-600 font-medium">
@@ -1196,36 +1149,36 @@ const Checkout = () => {
               </div>
 
               <div className="space-y-3 text-sm">
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-3">
                   <span className="text-muted-foreground">Subtotal</span>
-                  <span className="font-medium">{formatPrice(subtotal)}</span>
+                  <span className="font-medium text-right">{formatPrice(subtotal)}</span>
                 </div>
 
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-3">
                   <span className="text-muted-foreground">Shipping</span>
-                  <span className="font-medium">
+                  <span className="font-medium text-right">
                     {finalShipping === 0 ? "FREE" : formatPrice(finalShipping)}
                   </span>
                 </div>
 
                 {(discount > 0 || shippingDiscount > 0) && (
-                  <div className="flex justify-between text-green-600">
+                  <div className="flex justify-between gap-3 text-green-600">
                     <span>Discount</span>
-                    <span>-{formatPrice(discount + shippingDiscount)}</span>
+                    <span className="text-right">-{formatPrice(discount + shippingDiscount)}</span>
                   </div>
                 )}
 
                 {appliedCoupon?.code && (
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-xs text-muted-foreground break-words">
                     Coupon:{" "}
                     <span className="font-medium text-foreground">{appliedCoupon.code}</span>
                   </div>
                 )}
 
                 <div className="border-t border-border pt-3 mt-3">
-                  <div className="flex justify-between text-lg font-bold">
+                  <div className="flex justify-between gap-3 text-base sm:text-lg font-bold">
                     <span>Total</span>
-                    <span>{formatPrice(total)}</span>
+                    <span className="text-right">{formatPrice(total)}</span>
                   </div>
                 </div>
               </div>
@@ -1241,6 +1194,7 @@ const Checkout = () => {
                     Continue to Address
                   </Button>
                 )}
+
                 {step === 2 && (
                   <Button
                     variant="hero"
@@ -1251,6 +1205,7 @@ const Checkout = () => {
                     Continue to Payment
                   </Button>
                 )}
+
                 {step === 3 && (
                   <Button
                     variant="hero"
@@ -1273,7 +1228,7 @@ const Checkout = () => {
                   </Button>
                 )}
 
-                <Link to="/">
+                <Link to="/" className="block">
                   <Button variant="ghost" className="w-full" disabled={placingOrder}>
                     Continue Shopping
                   </Button>

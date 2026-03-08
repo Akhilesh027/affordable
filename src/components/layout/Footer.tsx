@@ -20,10 +20,11 @@ export const Footer = () => {
                 placeholder="Enter your email"
                 className="bg-white/20 border-white/30 text-primary-foreground placeholder:text-primary-foreground/60 rounded-full min-w-[250px]"
               />
+            
+            </div>
               <Button variant="secondary" className="rounded-full">
                 Subscribe
               </Button>
-            </div>
           </div>
         </div>
       </div>
