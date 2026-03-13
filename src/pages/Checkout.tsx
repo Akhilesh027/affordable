@@ -23,11 +23,13 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
+  Ticket,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "https://api.jsgallor.com";
+const WEBSITE = "affordable";
 
 type AddressForm = {
   fullName: string;
@@ -50,21 +52,76 @@ type SavedAddress = AddressForm & {
 
 type PaymentMethod = "cod" | "razorpay";
 
+type CouponCategory = {
+  id: string;
+  name?: string;
+  slug?: string;
+};
+
 type ApplyCouponResponse = {
   success: boolean;
+  valid?: boolean;
   message?: string;
   coupon?: {
-    id: string;
+    id?: string;
+    couponId?: string;
     code: string;
     type: "percentage" | "flat" | "free_shipping";
     value: number;
     maxDiscount?: number;
+    minOrder?: number;
     website?: string;
+    applyTo?: "all_categories" | "selected_categories";
+    categories?: CouponCategory[];
   };
   discount?: number;
   shippingDiscount?: number;
   finalAmount?: number;
   finalShipping?: number;
+  discountContext?: {
+    originalCartTotal?: number;
+    discountBaseTotal?: number;
+    shipping?: number;
+    applyTo?: "all_categories" | "selected_categories";
+    eligibleTotal?: number;
+    matchedItemsCount?: number;
+    categoryIds?: string[];
+    categoryNames?: string[];
+  };
+};
+
+type EligibleCoupon = {
+  id?: string;
+  _id?: string;
+  code: string;
+  title: string;
+  description?: string;
+  type: "percentage" | "flat" | "free_shipping";
+  value: number;
+  maxDiscount?: number;
+  minOrder?: number;
+  website?: string;
+  applyTo?: "all_categories" | "selected_categories";
+  categories?: Array<{
+    id?: string;
+    _id?: string;
+    name?: string;
+    slug?: string;
+  }>;
+};
+
+type ShippingLookupResponse = {
+  success: boolean;
+  message?: string;
+  data?: {
+    _id: string;
+    website: string;
+    city: string;
+    pincode?: string;
+    amount: number;
+    isActive: boolean;
+  } | null;
+  appliedRule?: string | null;
 };
 
 declare global {
@@ -89,6 +146,18 @@ const loadRazorpayScript = () =>
     document.body.appendChild(script);
   });
 
+const emptyAddress: AddressForm = {
+  fullName: "",
+  phone: "",
+  email: "",
+  addressLine1: "",
+  addressLine2: "",
+  city: "",
+  state: "",
+  pincode: "",
+  landmark: "",
+};
+
 const Checkout = () => {
   const navigate = useNavigate();
   const { items, updateQuantity, removeFromCart, subtotal, clearCart } = useCart();
@@ -99,19 +168,12 @@ const Checkout = () => {
   const [shippingDiscount, setShippingDiscount] = useState(0);
   const [applyingCoupon, setApplyingCoupon] = useState(false);
 
+  const [eligibleCoupons, setEligibleCoupons] = useState<EligibleCoupon[]>([]);
+  const [loadingEligibleCoupons, setLoadingEligibleCoupons] = useState(false);
+
   const [step, setStep] = useState<1 | 2 | 3>(1);
 
-  const [address, setAddress] = useState<AddressForm>({
-    fullName: "",
-    phone: "",
-    email: "",
-    addressLine1: "",
-    addressLine2: "",
-    city: "",
-    state: "",
-    pincode: "",
-    landmark: "",
-  });
+  const [address, setAddress] = useState<AddressForm>(emptyAddress);
 
   const [addresses, setAddresses] = useState<SavedAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string>("");
@@ -122,7 +184,20 @@ const Checkout = () => {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cod");
   const [placingOrder, setPlacingOrder] = useState(false);
 
-  const shippingCost = useMemo(() => (subtotal >= 5000 ? 0 : 299), [subtotal]);
+  // ✅ shipping states
+  const [shippingCost, setShippingCost] = useState(0);
+  const [shippingLoading, setShippingLoading] = useState(false);
+  const [shippingMeta, setShippingMeta] = useState<{
+    found: boolean;
+    city: string;
+    pincode: string;
+    appliedRule: string;
+  }>({
+    found: false,
+    city: "",
+    pincode: "",
+    appliedRule: "",
+  });
 
   const finalShipping = useMemo(
     () => Math.max(0, shippingCost - shippingDiscount),
@@ -140,6 +215,75 @@ const Checkout = () => {
     const user = userRaw ? JSON.parse(userRaw) : null;
     const userId = user?._id || user?.id || null;
     return { token, userId, user };
+  };
+
+  const selectedSavedAddress = useMemo(() => {
+    return addresses.find((a) => a._id === selectedAddressId) || null;
+  }, [addresses, selectedAddressId]);
+
+  const resolvedAddressForShipping = useMemo(() => {
+    if (selectedSavedAddress) return selectedSavedAddress;
+    if (showAddAddress && validateAddress(address)) return address;
+    return null;
+  }, [selectedSavedAddress, showAddAddress, address]);
+
+  const freeShippingRemaining = useMemo(() => {
+    return Math.max(0, 5000 - subtotal);
+  }, [subtotal]);
+
+  const buildCouponItemsPayload = () => {
+    return items.map((it: any) => {
+      const snap = it.productSnapshot || {};
+      const qty = Number(it.quantity || 1);
+      const price = Number(
+        snap.afterDiscount ??
+          snap.finalPrice ??
+          snap.salesPrice ??
+          snap.price ??
+          0
+      );
+
+      return {
+        productId: it.productId,
+        quantity: qty,
+        price,
+        lineTotal: price * qty,
+        categoryId:
+          it.categoryId ||
+          snap.categoryId ||
+          snap.subcategoryId ||
+          (typeof snap.category === "object" ? snap.category?._id || snap.category?.id : undefined) ||
+          (typeof snap.subcategory === "object" ? snap.subcategory?._id || snap.subcategory?.id : undefined) ||
+          (typeof snap.category === "string" ? snap.category : undefined) ||
+          (typeof snap.subcategory === "string" ? snap.subcategory : undefined),
+        category:
+          typeof snap.category === "object"
+            ? snap.category
+            : typeof snap.category === "string"
+              ? snap.category
+              : undefined,
+        subcategoryId:
+          snap.subcategoryId ||
+          (typeof snap.subcategory === "object" ? snap.subcategory?._id || snap.subcategory?.id : undefined),
+        subcategory:
+          typeof snap.subcategory === "object"
+            ? snap.subcategory
+            : typeof snap.subcategory === "string"
+              ? snap.subcategory
+              : undefined,
+        product: {
+          categoryId:
+            snap.categoryId ||
+            (typeof snap.category === "object" ? snap.category?._id || snap.category?.id : undefined),
+          category: snap.category,
+          subcategoryId:
+            snap.subcategoryId ||
+            (typeof snap.subcategory === "object" ? snap.subcategory?._id || snap.subcategory?.id : undefined),
+          subcategory: snap.subcategory,
+          price,
+        },
+      };
+    });
   };
 
   const fetchAddresses = async () => {
@@ -168,7 +312,7 @@ const Checkout = () => {
     }
   };
 
-  const validateAddress = (a: AddressForm) => {
+  function validateAddress(a: AddressForm) {
     const required: Array<keyof AddressForm> = [
       "fullName",
       "phone",
@@ -185,18 +329,18 @@ const Checkout = () => {
     if (!/^\d{6}$/.test(a.pincode.trim())) return false;
     if (a.email.trim() && !/^\S+@\S+\.\S+$/.test(a.email.trim())) return false;
     return true;
-  };
+  }
 
-  const saveNewAddress = async () => {
+  const saveNewAddress = async (): Promise<SavedAddress | null> => {
     const { token, userId } = getAuth();
     if (!token || !userId) {
       toast.error("Please login to save address");
-      return;
+      return null;
     }
 
     if (!validateAddress(address)) {
       toast.error("Please fill a valid delivery address");
-      return;
+      return null;
     }
 
     try {
@@ -220,22 +364,76 @@ const Checkout = () => {
 
       setShowAddAddress(false);
       toast.success("Address saved");
+      setAddress(emptyAddress);
 
-      setAddress({
-        fullName: "",
-        phone: "",
-        email: "",
-        addressLine1: "",
-        addressLine2: "",
-        city: "",
-        state: "",
-        pincode: "",
-        landmark: "",
-      });
+      return created;
     } catch (e: any) {
       toast.error(e?.message || "Failed to save address");
+      return null;
     } finally {
       setSavingAddress(false);
+    }
+  };
+
+  const fetchShippingCost = async (params: { city?: string; pincode?: string }) => {
+    const city = String(params.city || "").trim();
+    const pincode = String(params.pincode || "").trim();
+
+    if (!city) {
+      setShippingCost(0);
+      setShippingMeta({
+        found: false,
+        city: "",
+        pincode: "",
+        appliedRule: "",
+      });
+      return;
+    }
+
+    try {
+      setShippingLoading(true);
+
+      const qs = new URLSearchParams({
+        website: WEBSITE,
+        city,
+      });
+
+      if (pincode) qs.set("pincode", pincode);
+
+      const res = await fetch(`${API_BASE}/api/shipping-costs/by-location?${qs.toString()}`);
+      const data: ShippingLookupResponse = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.message || "Failed to fetch shipping cost");
+      }
+
+      if (data?.data) {
+        setShippingCost(Number(data.data.amount || 0));
+        setShippingMeta({
+          found: true,
+          city: data.data.city || city,
+          pincode: data.data.pincode || pincode,
+          appliedRule: data.appliedRule || "",
+        });
+      } else {
+        setShippingCost(0);
+        setShippingMeta({
+          found: false,
+          city,
+          pincode,
+          appliedRule: "",
+        });
+      }
+    } catch {
+      setShippingCost(0);
+      setShippingMeta({
+        found: false,
+        city,
+        pincode,
+        appliedRule: "",
+      });
+    } finally {
+      setShippingLoading(false);
     }
   };
 
@@ -244,12 +442,71 @@ const Checkout = () => {
   }, [step]);
 
   useEffect(() => {
+    if (!resolvedAddressForShipping?.city) {
+      setShippingCost(0);
+      setShippingMeta({
+        found: false,
+        city: "",
+        pincode: "",
+        appliedRule: "",
+      });
+      return;
+    }
+
+    fetchShippingCost({
+      city: resolvedAddressForShipping.city,
+      pincode: resolvedAddressForShipping.pincode,
+    });
+  }, [resolvedAddressForShipping?.city, resolvedAddressForShipping?.pincode]);
+
+  useEffect(() => {
     if (!appliedCoupon?.code) return;
     reApplyCoupon();
-  }, [subtotal, shippingCost]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subtotal, shippingCost, items.length, items]);
 
-  const applyCoupon = async () => {
-    const code = couponCode.trim().toUpperCase();
+  useEffect(() => {
+    fetchEligibleCoupons();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subtotal, shippingCost, items.length, items]);
+
+  const fetchEligibleCoupons = async () => {
+    try {
+      setLoadingEligibleCoupons(true);
+
+      const res = await fetch(
+        `${API_BASE}/api/${WEBSITE}/coupons/eligible?subtotal=${subtotal}&shipping=${shippingCost}`,
+        {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setEligibleCoupons([]);
+        return;
+      }
+
+      const list = Array.isArray(data?.coupons)
+        ? data.coupons
+        : Array.isArray(data?.data)
+          ? data.data
+          : Array.isArray(data)
+            ? data
+            : [];
+
+      setEligibleCoupons(list);
+    } catch {
+      setEligibleCoupons([]);
+    } finally {
+      setLoadingEligibleCoupons(false);
+    }
+  };
+
+  const applyCouponByCode = async (codeInput: string) => {
+    const code = codeInput.trim().toUpperCase();
     if (!code) {
       toast.error("Please enter a coupon code");
       return;
@@ -260,7 +517,7 @@ const Checkout = () => {
     try {
       setApplyingCoupon(true);
 
-      const res = await fetch(`${API_BASE}/api/affordable/coupons/apply`, {
+      const res = await fetch(`${API_BASE}/api/${WEBSITE}/coupons/apply`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -268,6 +525,7 @@ const Checkout = () => {
           cartTotal: subtotal,
           shipping: shippingCost,
           userId: userId || undefined,
+          items: buildCouponItemsPayload(),
         }),
       });
 
@@ -275,6 +533,7 @@ const Checkout = () => {
       if (!res.ok) throw new Error(data?.message || "Failed to apply coupon");
 
       setAppliedCoupon(data.coupon || null);
+      setCouponCode(data.coupon?.code || code);
       setDiscount(Number(data.discount || 0));
       setShippingDiscount(Number(data.shippingDiscount || 0));
 
@@ -289,6 +548,10 @@ const Checkout = () => {
     }
   };
 
+  const applyCoupon = async () => {
+    await applyCouponByCode(couponCode);
+  };
+
   const reApplyCoupon = async () => {
     const code = appliedCoupon?.code || couponCode.trim().toUpperCase();
     if (!code) return;
@@ -296,7 +559,7 @@ const Checkout = () => {
     const { userId } = getAuth();
 
     try {
-      const res = await fetch(`${API_BASE}/api/affordable/coupons/apply`, {
+      const res = await fetch(`${API_BASE}/api/${WEBSITE}/coupons/apply`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -304,8 +567,10 @@ const Checkout = () => {
           cartTotal: subtotal,
           shipping: shippingCost,
           userId: userId || undefined,
+          items: buildCouponItemsPayload(),
         }),
       });
+
       const data: ApplyCouponResponse = await res.json();
       if (!res.ok) throw new Error(data?.message || "Coupon invalid");
 
@@ -348,6 +613,7 @@ const Checkout = () => {
   };
 
   const buildOrderPayload = (args?: {
+    addressIdOverride?: string;
     payment?: any;
     razorpay?: {
       razorpay_order_id?: string;
@@ -371,17 +637,30 @@ const Checkout = () => {
         price,
         finalPrice,
         productSnapshot: snap,
+        categoryId:
+          it.categoryId ||
+          snap.categoryId ||
+          snap.subcategoryId ||
+          (typeof snap.category === "object" ? snap.category?._id || snap.category?.id : undefined) ||
+          (typeof snap.subcategory === "object" ? snap.subcategory?._id || snap.subcategory?.id : undefined) ||
+          (typeof snap.category === "string" ? snap.category : undefined) ||
+          (typeof snap.subcategory === "string" ? snap.subcategory : undefined),
+        category: snap.category,
+        subcategoryId:
+          snap.subcategoryId ||
+          (typeof snap.subcategory === "object" ? snap.subcategory?._id || snap.subcategory?.id : undefined),
+        subcategory: snap.subcategory,
       };
     });
 
     return {
       userId,
-      addressId: selectedAddressId,
+      addressId: args?.addressIdOverride || selectedAddressId,
       items: orderItems,
       coupon: appliedCoupon?.code
         ? {
             code: appliedCoupon.code,
-            couponId: appliedCoupon.id,
+            couponId: appliedCoupon.couponId || appliedCoupon.id,
             type: appliedCoupon.type,
           }
         : undefined,
@@ -391,6 +670,21 @@ const Checkout = () => {
         shippingCost,
         shippingDiscount,
         total,
+      },
+      shipping: {
+        website: WEBSITE,
+        city:
+          resolvedAddressForShipping?.city ||
+          shippingMeta.city ||
+          "",
+        pincode:
+          resolvedAddressForShipping?.pincode ||
+          shippingMeta.pincode ||
+          "",
+        amount: shippingCost,
+        finalShipping,
+        appliedRule: shippingMeta.appliedRule || "",
+        matchedRuleFound: shippingMeta.found,
       },
       payment: {
         method: paymentMethod,
@@ -419,11 +713,11 @@ const Checkout = () => {
     });
 
     const data = await res.json();
-    if (!res.ok) throw new Error(data?.error || "Failed to place order");
+    if (!res.ok) throw new Error(data?.error || data?.message || "Failed to place order");
     return data;
   };
 
-  const payWithRazorpay = async () => {
+  const payWithRazorpay = async (addressIdToUse: string) => {
     const { token, userId, user } = getAuth();
     if (!token || !userId) {
       toast.error("Please login to place order");
@@ -440,7 +734,11 @@ const Checkout = () => {
         amount: Number(total),
         currency: "INR",
         receipt: `rcpt_${Date.now()}`,
-        notes: { website: "affordable" },
+        notes: {
+          website: WEBSITE,
+          shippingCity: resolvedAddressForShipping?.city || "",
+          shippingPincode: resolvedAddressForShipping?.pincode || "",
+        },
       }),
     });
 
@@ -478,6 +776,7 @@ const Checkout = () => {
           }
 
           const payload = buildOrderPayload({
+            addressIdOverride: addressIdToUse,
             razorpay: response,
             paymentStatus: "paid",
             payment: {
@@ -496,9 +795,11 @@ const Checkout = () => {
               total,
               shippingCost,
               shippingDiscount,
+              finalShipping,
               discount,
               couponCode: appliedCoupon?.code || "",
               razorpay: response,
+              shippingMeta,
             },
           });
         } catch (err: any) {
@@ -538,9 +839,10 @@ const Checkout = () => {
       let addressIdToUse = selectedAddressId;
 
       if (!addressIdToUse && showAddAddress) {
-        await saveNewAddress();
-        await fetchAddresses();
-        addressIdToUse = selectedAddressId;
+        const created = await saveNewAddress();
+        if (created?._id) {
+          addressIdToUse = created._id;
+        }
       }
 
       if (!addressIdToUse) {
@@ -551,10 +853,10 @@ const Checkout = () => {
       }
 
       if (paymentMethod === "cod") {
-        const payload = {
-          ...buildOrderPayload({ paymentStatus: "pending" }),
-          addressId: addressIdToUse,
-        };
+        const payload = buildOrderPayload({
+          addressIdOverride: addressIdToUse,
+          paymentStatus: "pending",
+        });
 
         const data = await createOrderInBackend(payload);
 
@@ -567,8 +869,10 @@ const Checkout = () => {
             total,
             shippingCost,
             shippingDiscount,
+            finalShipping,
             discount,
             couponCode: appliedCoupon?.code || "",
+            shippingMeta,
           },
         });
 
@@ -576,11 +880,21 @@ const Checkout = () => {
         return;
       }
 
-      await payWithRazorpay();
+      await payWithRazorpay(addressIdToUse);
     } catch (e: any) {
       toast.error(e?.message || "Order failed");
       setPlacingOrder(false);
     }
+  };
+
+  const renderCouponValue = (coupon: EligibleCoupon) => {
+    if (coupon.type === "percentage") {
+      return `${coupon.value}% OFF${coupon.maxDiscount ? ` • Max ${formatPrice(coupon.maxDiscount)}` : ""}`;
+    }
+    if (coupon.type === "flat") {
+      return `${formatPrice(coupon.value)} OFF`;
+    }
+    return "Free Shipping";
   };
 
   if (!items || items.length === 0) {
@@ -609,7 +923,6 @@ const Checkout = () => {
   return (
     <Layout>
       <div className="container mx-auto px-4 py-6 sm:py-8">
-        {/* Breadcrumb */}
         <nav className="text-xs sm:text-sm text-muted-foreground mb-5 sm:mb-6 flex flex-wrap items-center gap-y-1">
           <Link to="/" className="hover:text-primary">
             Home
@@ -621,7 +934,6 @@ const Checkout = () => {
         <div className="flex flex-col gap-3 mb-6 sm:mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold">Checkout</h1>
 
-          {/* Stepper */}
           <div className="grid grid-cols-3 gap-2 sm:flex sm:items-center sm:gap-3 text-xs sm:text-sm">
             <div
               className={`flex flex-col sm:flex-row items-center gap-2 ${
@@ -681,9 +993,7 @@ const Checkout = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
-          {/* LEFT SIDE */}
           <div className="lg:col-span-2 space-y-6 order-2 lg:order-1">
-            {/* STEP 1 */}
             {step === 1 && (
               <div className="space-y-4">
                 <div className="hidden md:grid grid-cols-12 gap-4 px-4 py-2 bg-muted rounded-xl text-sm font-medium text-muted-foreground">
@@ -697,9 +1007,14 @@ const Checkout = () => {
                   const pid = item.productId;
                   const snap = item.productSnapshot || {};
                   const name = snap.name || "Product";
-                  const price = Number(snap.price || 0);
+                  const price = Number(
+                    snap.afterDiscount ?? snap.finalPrice ?? snap.price ?? 0
+                  );
                   const image = snap.image || "";
-                  const category = snap.category || "";
+                  const category =
+                    typeof snap.category === "string"
+                      ? snap.category
+                      : snap.category?.name || snap.category?.slug || "";
                   const inStock = snap.inStock !== false;
 
                   return (
@@ -784,54 +1099,118 @@ const Checkout = () => {
                   );
                 })}
 
-                {/* Coupon */}
-                <div className="mt-6 space-y-2">
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <div className="relative flex-1">
-                      <Tag className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        type="text"
-                        placeholder="Enter coupon code"
-                        value={couponCode}
-                        onChange={(e) => setCouponCode(e.target.value)}
-                        className="pl-10"
-                        disabled={!!appliedCoupon}
-                      />
+                <div className="mt-6 space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <div className="relative flex-1">
+                        <Tag className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          type="text"
+                          placeholder="Enter coupon code"
+                          value={couponCode}
+                          onChange={(e) => setCouponCode(e.target.value)}
+                          className="pl-10"
+                          disabled={!!appliedCoupon}
+                        />
+                      </div>
+
+                      {!appliedCoupon ? (
+                        <Button
+                          variant="outline"
+                          onClick={applyCoupon}
+                          disabled={applyingCoupon}
+                          className="w-full sm:w-auto"
+                        >
+                          {applyingCoupon ? "Applying..." : "Apply"}
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          onClick={removeCoupon}
+                          className="gap-2 w-full sm:w-auto"
+                        >
+                          <XCircle className="h-4 w-4" />
+                          Remove
+                        </Button>
+                      )}
                     </div>
 
-                    {!appliedCoupon ? (
-                      <Button
-                        variant="outline"
-                        onClick={applyCoupon}
-                        disabled={applyingCoupon}
-                        className="w-full sm:w-auto"
-                      >
-                        {applyingCoupon ? "Applying..." : "Apply"}
-                      </Button>
+                    {appliedCoupon ? (
+                      <div className="text-sm text-green-600">
+                        Applied <span className="font-semibold">{appliedCoupon.code}</span> • Saved{" "}
+                        <span className="font-semibold">
+                          {formatPrice(discount + shippingDiscount)}
+                        </span>
+                      </div>
                     ) : (
-                      <Button
-                        variant="outline"
-                        onClick={removeCoupon}
-                        className="gap-2 w-full sm:w-auto"
-                      >
-                        <XCircle className="h-4 w-4" />
-                        Remove
-                      </Button>
+                      <p className="text-sm text-muted-foreground">
+                        Use a valid coupon created by Admin Panel.
+                      </p>
                     )}
                   </div>
 
-                  {appliedCoupon ? (
-                    <div className="text-sm text-green-600">
-                      Applied <span className="font-semibold">{appliedCoupon.code}</span> • Saved{" "}
-                      <span className="font-semibold">
-                        {formatPrice(discount + shippingDiscount)}
-                      </span>
+                  <div className="border rounded-2xl p-4 bg-card">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Ticket className="h-4 w-4 text-primary" />
+                      <h3 className="font-semibold">Available Coupons</h3>
                     </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      Use a valid coupon created by Admin Panel.
-                    </p>
-                  )}
+
+                    {loadingEligibleCoupons ? (
+                      <div className="text-sm text-muted-foreground">Loading coupons...</div>
+                    ) : eligibleCoupons.length === 0 ? (
+                      <div className="text-sm text-muted-foreground">
+                        No eligible coupons available right now.
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {eligibleCoupons.map((coupon, idx) => {
+                          const code = coupon.code;
+                          const alreadyApplied = appliedCoupon?.code === code;
+
+                          return (
+                            <div
+                              key={`${coupon._id || coupon.id || code}-${idx}`}
+                              className="border rounded-xl p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+                            >
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="font-semibold">{code}</span>
+                                  <span className="text-sm text-primary font-medium">
+                                    {renderCouponValue(coupon)}
+                                  </span>
+                                </div>
+
+                                <div className="text-sm text-muted-foreground mt-1">
+                                  {coupon.title}
+                                </div>
+
+                                {coupon.description ? (
+                                  <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                    {coupon.description}
+                                  </div>
+                                ) : null}
+
+                                {coupon.minOrder ? (
+                                  <div className="text-xs text-muted-foreground mt-1">
+                                    Min order: {formatPrice(coupon.minOrder)}
+                                  </div>
+                                ) : null}
+                              </div>
+
+                              <Button
+                                variant={alreadyApplied ? "secondary" : "outline"}
+                                disabled={applyingCoupon || alreadyApplied}
+                                onClick={() => applyCouponByCode(code)}
+                                className="w-full sm:w-auto"
+                              >
+                                {alreadyApplied ? "Applied" : "Apply"}
+                              </Button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex flex-col sm:flex-row justify-end gap-2 pt-2">
@@ -847,7 +1226,6 @@ const Checkout = () => {
               </div>
             )}
 
-            {/* STEP 2 */}
             {step === 2 && (
               <div className="bg-card border border-border rounded-2xl p-4 sm:p-6 space-y-5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -918,6 +1296,48 @@ const Checkout = () => {
                     </div>
                   )}
                 </div>
+
+                {(selectedSavedAddress || (showAddAddress && validateAddress(address))) && (
+                  <div className="rounded-2xl border border-border p-4 bg-muted/30">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-2">
+                        <Truck className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                        <div>
+                          <p className="font-medium">Shipping for selected address</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {(resolvedAddressForShipping?.city || "")}
+                            {(resolvedAddressForShipping?.pincode || "")
+                              ? ` - ${resolvedAddressForShipping?.pincode}`
+                              : ""}
+                          </p>
+
+                          {!shippingLoading && !shippingMeta.found && resolvedAddressForShipping?.city && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              No specific shipping rule found. Default shipping applied: FREE
+                            </p>
+                          )}
+
+                          {!shippingLoading && shippingMeta.found && shippingMeta.appliedRule && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Applied rule: {shippingMeta.appliedRule.replace(/_/g, " ")}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="text-right font-semibold">
+                        {shippingLoading ? (
+                          <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            Loading...
+                          </span>
+                        ) : (
+                          <span>{finalShipping === 0 ? "FREE" : formatPrice(finalShipping)}</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {showAddAddress && (
                   <div className="border border-border rounded-2xl p-4">
@@ -1053,12 +1473,40 @@ const Checkout = () => {
               </div>
             )}
 
-            {/* STEP 3 */}
             {step === 3 && (
               <div className="bg-card border border-border rounded-2xl p-4 sm:p-6 space-y-6">
                 <div className="flex items-center gap-2">
                   <CreditCard className="h-5 w-5 text-primary" />
                   <h2 className="text-lg sm:text-xl font-bold">Payment</h2>
+                </div>
+
+                <div className="rounded-2xl border border-border p-4 bg-muted/30">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-2">
+                      <MapPin className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                      <div>
+                        <p className="font-medium">Delivery Location</p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {resolvedAddressForShipping?.city || "-"}
+                          {resolvedAddressForShipping?.pincode
+                            ? ` - ${resolvedAddressForShipping.pincode}`
+                            : ""}
+                        </p>
+                        {!shippingLoading && shippingMeta.found && shippingMeta.appliedRule && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Shipping rule: {shippingMeta.appliedRule.replace(/_/g, " ")}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground">Shipping</p>
+                      <p className="font-semibold">
+                        {shippingLoading ? "Loading..." : finalShipping === 0 ? "FREE" : formatPrice(finalShipping)}
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1111,7 +1559,7 @@ const Checkout = () => {
                     variant="hero"
                     onClick={handlePlaceOrder}
                     className="w-full sm:w-auto sm:min-w-[200px]"
-                    disabled={placingOrder}
+                    disabled={placingOrder || shippingLoading}
                   >
                     {placingOrder ? (
                       <>
@@ -1130,20 +1578,38 @@ const Checkout = () => {
             )}
           </div>
 
-          {/* RIGHT SIDE */}
           <div className="lg:col-span-1 order-1 lg:order-2">
             <div className="bg-card border border-border rounded-2xl p-4 sm:p-6 lg:sticky lg:top-24">
               <h2 className="text-lg sm:text-xl font-bold mb-5 sm:mb-6">Order Summary</h2>
 
               <div className="flex items-start gap-3 p-3 bg-amber-light/50 rounded-xl mb-6">
                 <Truck className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                <div className="text-sm">
-                  {subtotal >= 5000 ? (
-                    <span className="text-green-600 font-medium">
-                      Free shipping on this order!
+                <div className="text-sm w-full">
+                  {!resolvedAddressForShipping?.city ? (
+                    <span>Select address to calculate shipping</span>
+                  ) : shippingLoading ? (
+                    <span className="inline-flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Calculating shipping...
                     </span>
+                  ) : shippingMeta.found ? (
+                    <div className="space-y-1">
+                      <span className="font-medium">
+                        Shipping for {resolvedAddressForShipping.city}
+                        {resolvedAddressForShipping.pincode
+                          ? ` - ${resolvedAddressForShipping.pincode}`
+                          : ""}
+                      </span>
+                      {shippingMeta.appliedRule && (
+                        <p className="text-xs text-muted-foreground">
+                          Rule: {shippingMeta.appliedRule.replace(/_/g, " ")}
+                        </p>
+                      )}
+                    </div>
                   ) : (
-                    <span>Add {formatPrice(5000 - subtotal)} more for free shipping</span>
+                    <span className="text-green-600 font-medium">
+                      No shipping rule matched. FREE shipping applied.
+                    </span>
                   )}
                 </div>
               </div>
@@ -1157,21 +1623,40 @@ const Checkout = () => {
                 <div className="flex justify-between gap-3">
                   <span className="text-muted-foreground">Shipping</span>
                   <span className="font-medium text-right">
-                    {finalShipping === 0 ? "FREE" : formatPrice(finalShipping)}
+                    {shippingLoading ? "Loading..." : finalShipping === 0 ? "FREE" : formatPrice(finalShipping)}
                   </span>
                 </div>
 
-                {(discount > 0 || shippingDiscount > 0) && (
+                {shippingDiscount > 0 && (
                   <div className="flex justify-between gap-3 text-green-600">
-                    <span>Discount</span>
-                    <span className="text-right">-{formatPrice(discount + shippingDiscount)}</span>
+                    <span>Shipping Discount</span>
+                    <span className="text-right">-{formatPrice(shippingDiscount)}</span>
                   </div>
                 )}
 
-                {appliedCoupon?.code && (
+                {discount > 0 && (
+                  <div className="flex justify-between gap-3 text-green-600">
+                    <span>Discount</span>
+                    <span className="text-right">-{formatPrice(discount)}</span>
+                  </div>
+                )}
+
+                {(discount > 0 || shippingDiscount > 0) && appliedCoupon?.code && (
                   <div className="text-xs text-muted-foreground break-words">
                     Coupon:{" "}
                     <span className="font-medium text-foreground">{appliedCoupon.code}</span>
+                  </div>
+                )}
+
+                {resolvedAddressForShipping?.city && (
+                  <div className="text-xs text-muted-foreground break-words">
+                    Deliver to:{" "}
+                    <span className="font-medium text-foreground">
+                      {resolvedAddressForShipping.city}
+                      {resolvedAddressForShipping.pincode
+                        ? ` - ${resolvedAddressForShipping.pincode}`
+                        : ""}
+                    </span>
                   </div>
                 )}
 
@@ -1182,6 +1667,12 @@ const Checkout = () => {
                   </div>
                 </div>
               </div>
+
+              {step === 1 && freeShippingRemaining > 0 && (
+                <div className="mt-4 text-xs text-muted-foreground">
+                  Add {formatPrice(freeShippingRemaining)} more only if you still want to use your old free-shipping offer logic.
+                </div>
+              )}
 
               <div className="mt-6 space-y-2">
                 {step === 1 && (
@@ -1212,7 +1703,7 @@ const Checkout = () => {
                     size="lg"
                     className="w-full"
                     onClick={handlePlaceOrder}
-                    disabled={placingOrder}
+                    disabled={placingOrder || shippingLoading}
                   >
                     {placingOrder ? (
                       <>

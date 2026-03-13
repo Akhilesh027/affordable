@@ -13,6 +13,7 @@ import {
   Minus,
   Plus,
   ShoppingCart,
+  Check,
 } from "lucide-react";
 import { ProductCard } from "@/components/products/ProductCard";
 import { Badge } from "@/components/ui/badge";
@@ -28,12 +29,12 @@ type ApiProduct = {
   originalPrice?: number;
   quantity?: number;
   availability?: string;
-  color?: string;
+  color?: string | string[];        // can be array now
   image: string;
   galleryImages?: string[];
   material?: string;
   weight?: string | number;
-  size?: string;
+  size?: string | string[];          // can be array now
   tier?: string;
 };
 
@@ -48,11 +49,11 @@ type UiProduct = {
   image: string;
   images: string[];
   inStock: boolean;
-  colors: string[];
+  colors: string[];                  // array of hex strings
+  sizes: string[];                    // array of size strings
   quantity: number;
   material: string;
   weight: string;
-  size: string;
 };
 
 const mapApiProductToUi = (p: ApiProduct): UiProduct => {
@@ -65,6 +66,22 @@ const mapApiProductToUi = (p: ApiProduct): UiProduct => {
       ? [p.image, ...p.galleryImages]
       : [p.image];
 
+  // Normalize color to array
+  let colors: string[] = [];
+  if (Array.isArray(p.color)) {
+    colors = p.color.filter(Boolean);
+  } else if (typeof p.color === "string" && p.color) {
+    colors = [p.color];
+  }
+
+  // Normalize size to array
+  let sizes: string[] = [];
+  if (Array.isArray(p.size)) {
+    sizes = p.size.filter(Boolean);
+  } else if (typeof p.size === "string" && p.size) {
+    sizes = [p.size];
+  }
+
   return {
     id: p._id,
     _id: p._id,
@@ -76,11 +93,11 @@ const mapApiProductToUi = (p: ApiProduct): UiProduct => {
     image: p.image,
     images,
     inStock,
-    colors: p.color ? [p.color] : [],
+    colors,
+    sizes,
     quantity: qty,
     material: p.material || "—",
     weight: p.weight ? String(p.weight) : "—",
-    size: p.size || "—",
   };
 };
 
@@ -92,6 +109,7 @@ const ProductDetails = () => {
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
+  const [selectedSize, setSelectedSize] = useState<string | null>(null);
 
   const [product, setProduct] = useState<UiProduct | null>(null);
   const [relatedProducts, setRelatedProducts] = useState<UiProduct[]>([]);
@@ -110,7 +128,12 @@ const ProductDetails = () => {
         if (!res.ok) throw new Error("Product not found");
 
         const data: ApiProduct = await res.json();
-        setProduct(mapApiProductToUi(data));
+        const uiProduct = mapApiProductToUi(data);
+        setProduct(uiProduct);
+
+        // Auto-select first available color and size
+        if (uiProduct.colors.length > 0) setSelectedColor(uiProduct.colors[0]);
+        if (uiProduct.sizes.length > 0) setSelectedSize(uiProduct.sizes[0]);
       } catch (e: any) {
         setError(e?.message || "Failed to load product");
         setProduct(null);
@@ -161,6 +184,16 @@ const ProductDetails = () => {
 
   const decreaseQty = () => {
     setQuantity((prev) => Math.max(1, prev - 1));
+  };
+
+  const handleAddToCart = () => {
+    if (!product) return;
+    // Pass selected options along with product
+    addToCart({
+      ...product,
+      selectedColor,
+      selectedSize,
+    } as any, quantity);
   };
 
   if (loading) {
@@ -270,27 +303,59 @@ const ProductDetails = () => {
               {product.description || "No description available."}
             </p>
 
+            {/* Color Selection */}
             {product.colors && product.colors.length > 0 && (
               <div>
-                <h3 className="font-semibold mb-3 text-sm sm:text-base">Color</h3>
-                <div className="flex flex-wrap gap-2">
+                <h3 className="font-semibold mb-3 text-sm sm:text-base">
+                  Color <span className="font-normal text-muted-foreground ml-2">(select one)</span>
+                </h3>
+                <div className="flex flex-wrap gap-3">
                   {product.colors.map((color, index) => (
                     <button
                       key={index}
                       onClick={() => setSelectedColor(color)}
-                      className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl border-2 transition-all ${
+                      className={`relative w-10 h-10 sm:w-12 sm:h-12 rounded-xl border-2 transition-all ${
                         selectedColor === color
                           ? "border-primary ring-2 ring-primary/30 scale-110"
                           : "border-border hover:border-primary/50"
                       }`}
                       style={{ backgroundColor: color }}
                       title={color}
-                    />
+                    >
+                      {selectedColor === color && (
+                        <Check className="absolute inset-0 m-auto h-5 w-5 text-white drop-shadow-md" />
+                      )}
+                    </button>
                   ))}
                 </div>
               </div>
             )}
 
+            {/* Size Selection */}
+            {product.sizes && product.sizes.length > 0 && (
+              <div>
+                <h3 className="font-semibold mb-3 text-sm sm:text-base">
+                  Size <span className="font-normal text-muted-foreground ml-2">(select one)</span>
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {product.sizes.map((size, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setSelectedSize(size)}
+                      className={`px-4 py-2 rounded-xl border-2 text-sm font-medium transition-all ${
+                        selectedSize === size
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border hover:border-primary/50 text-foreground"
+                      }`}
+                    >
+                      {size}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Quantity */}
             <div>
               <h3 className="font-semibold mb-3 text-sm sm:text-base">Quantity</h3>
               <div className="flex flex-col sm:flex-row sm:items-center gap-3">
@@ -321,12 +386,13 @@ const ProductDetails = () => {
               </div>
             </div>
 
+            {/* Add to Cart & Actions */}
             <div className="flex flex-col sm:flex-row gap-3">
               <Button
                 variant="hero"
                 size="lg"
                 className="flex-1 w-full"
-                onClick={() => addToCart(product as any, quantity)}
+                onClick={handleAddToCart}
                 disabled={!product.inStock}
               >
                 <ShoppingCart className="h-5 w-5 mr-2" />
@@ -343,6 +409,7 @@ const ProductDetails = () => {
               </div>
             </div>
 
+            {/* Features */}
             <div className="grid grid-cols-1 min-[420px]:grid-cols-3 gap-4 pt-6 border-t border-border">
               {[
                 { icon: Truck, label: "Free Delivery" },
@@ -372,9 +439,9 @@ const ProductDetails = () => {
               <tbody className="divide-y divide-border">
                 {[
                   ["Material", product.material || "—"],
-                  ["Size", product.size || "—"],
+                  ["Available Sizes", product.sizes?.join(", ") || "—"],
                   ["Weight", product.weight || "—"],
-                  ["Color Options", `${product.colors?.length || 0} color available`],
+                  ["Available Colors", product.colors?.length ? `${product.colors.length} color(s)` : "—"],
                   ["Availability", product.inStock ? "In Stock" : "Out of Stock"],
                 ].map(([label, value], index) => (
                   <tr key={index}>
