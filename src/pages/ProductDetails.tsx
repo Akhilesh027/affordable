@@ -20,6 +20,21 @@ import { Badge } from "@/components/ui/badge";
 
 const API_BASE = "https://api.jsgallor.com/api/affordable";
 
+// Extended API types to include variants and new fields
+type ApiVariant = {
+  _id?: string;
+  attributes: {
+    size?: string;
+    color?: string;
+    fabric?: string;
+  };
+  sku: string;
+  price: number;
+  quantity: number;
+  lowStockThreshold: number;
+  image?: string;
+};
+
 type ApiProduct = {
   _id: string;
   name: string;
@@ -29,13 +44,18 @@ type ApiProduct = {
   originalPrice?: number;
   quantity?: number;
   availability?: string;
-  color?: string | string[];        // can be array now
+  color?: string | string[];
   image: string;
   galleryImages?: string[];
   material?: string;
   weight?: string | number;
-  size?: string | string[];          // can be array now
+  size?: string | string[];
   tier?: string;
+  // NEW FIELDS
+  fabricTypes?: string[];
+  extraPillows?: number;
+  hasVariants?: boolean;
+  variants?: ApiVariant[];
 };
 
 type UiProduct = {
@@ -49,18 +69,18 @@ type UiProduct = {
   image: string;
   images: string[];
   inStock: boolean;
-  colors: string[];                  // array of hex strings
-  sizes: string[];                    // array of size strings
+  colors: string[];
+  sizes: string[];
+  fabrics: string[];                // NEW
   quantity: number;
   material: string;
   weight: string;
+  extraPillows?: number;            // NEW
+  hasVariants: boolean;
+  variants?: ApiVariant[];           // keep original variants for selection
 };
 
 const mapApiProductToUi = (p: ApiProduct): UiProduct => {
-  const qty = Number(p.quantity ?? 0);
-  const availability = String(p.availability || "").toLowerCase();
-  const inStock = qty > 0 && (availability.includes("in stock") || availability === "");
-
   const images =
     p.galleryImages && p.galleryImages.length > 0
       ? [p.image, ...p.galleryImages]
@@ -82,6 +102,27 @@ const mapApiProductToUi = (p: ApiProduct): UiProduct => {
     sizes = [p.size];
   }
 
+  // Normalize fabric types
+  let fabrics: string[] = [];
+  if (Array.isArray(p.fabricTypes)) {
+    fabrics = p.fabricTypes.filter(Boolean);
+  } else if (typeof p.fabricTypes === "string" && p.fabricTypes) {
+    fabrics = [p.fabricTypes];
+  }
+
+  const hasVariants = p.hasVariants && Array.isArray(p.variants) && p.variants.length > 0;
+
+  // For variant products, overall stock is sum of variants
+  let totalQty = 0;
+  if (hasVariants && p.variants) {
+    totalQty = p.variants.reduce((sum, v) => sum + (v.quantity || 0), 0);
+  } else {
+    totalQty = Number(p.quantity ?? 0);
+  }
+
+  const availability = String(p.availability || "").toLowerCase();
+  const inStock = totalQty > 0 && (availability.includes("in stock") || availability === "");
+
   return {
     id: p._id,
     _id: p._id,
@@ -95,9 +136,13 @@ const mapApiProductToUi = (p: ApiProduct): UiProduct => {
     inStock,
     colors,
     sizes,
-    quantity: qty,
+    fabrics,
+    quantity: totalQty,
     material: p.material || "—",
     weight: p.weight ? String(p.weight) : "—",
+    extraPillows: p.extraPillows,
+    hasVariants,
+    variants: p.variants,
   };
 };
 
@@ -110,6 +155,7 @@ const ProductDetails = () => {
   const [selectedImage, setSelectedImage] = useState(0);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [selectedFabric, setSelectedFabric] = useState<string | null>(null); // NEW
 
   const [product, setProduct] = useState<UiProduct | null>(null);
   const [relatedProducts, setRelatedProducts] = useState<UiProduct[]>([]);
@@ -131,9 +177,21 @@ const ProductDetails = () => {
         const uiProduct = mapApiProductToUi(data);
         setProduct(uiProduct);
 
-        // Auto-select first available color and size
-        if (uiProduct.colors.length > 0) setSelectedColor(uiProduct.colors[0]);
-        if (uiProduct.sizes.length > 0) setSelectedSize(uiProduct.sizes[0]);
+        // Auto-select first available options
+        if (uiProduct.hasVariants && uiProduct.variants) {
+          // For variant products, we can't simply pick first color/size/fabric
+          // because they must form a valid combination. We'll find the first variant
+          // and select its attributes.
+          const firstVariant = uiProduct.variants[0];
+          if (firstVariant) {
+            setSelectedColor(firstVariant.attributes.color || null);
+            setSelectedSize(firstVariant.attributes.size || null);
+            setSelectedFabric(firstVariant.attributes.fabric || null);
+          }
+        } else {
+          if (uiProduct.colors.length > 0) setSelectedColor(uiProduct.colors[0]);
+          if (uiProduct.sizes.length > 0) setSelectedSize(uiProduct.sizes[0]);
+        }
       } catch (e: any) {
         setError(e?.message || "Failed to load product");
         setProduct(null);
@@ -169,16 +227,80 @@ const ProductDetails = () => {
     fetchRelated();
   }, [product]);
 
+  // For variant products, find the currently selected variant based on attributes
+  const selectedVariant = useMemo(() => {
+    if (!product?.hasVariants || !product.variants) return null;
+
+    // If any required attribute is not selected, return null
+    // We need to know which attributes are used in variants. We'll just try to match all non-null selections.
+    const match = product.variants.find(v => {
+      const colorMatch = !selectedColor || v.attributes.color === selectedColor;
+      const sizeMatch = !selectedSize || v.attributes.size === selectedSize;
+      const fabricMatch = !selectedFabric || v.attributes.fabric === selectedFabric;
+      return colorMatch && sizeMatch && fabricMatch;
+    });
+    return match || null;
+  }, [product, selectedColor, selectedSize, selectedFabric]);
+
+  // Update price, stock, image based on selected variant
+  const displayPrice = useMemo(() => {
+    if (selectedVariant) return selectedVariant.price;
+    return product?.price || 0;
+  }, [product, selectedVariant]);
+
+  const displayStock = useMemo(() => {
+    if (selectedVariant) return selectedVariant.quantity;
+    return product?.quantity || 0;
+  }, [product, selectedVariant]);
+
+  const inStock = displayStock > 0;
+
+  // For variant products, we can also show a variant-specific image if available
+  const displayImage = useMemo(() => {
+    if (selectedVariant?.image) return selectedVariant.image;
+    if (product?.images && product.images.length > 0) {
+      return product.images[selectedImage] || product.image;
+    }
+    return product?.image || "";
+  }, [product, selectedVariant, selectedImage]);
+
   const discount = useMemo(() => {
     if (!product?.originalPrice) return 0;
     return Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100);
   }, [product]);
 
+  // Collect unique option values for variant products
+  const availableColors = useMemo(() => {
+    if (!product?.hasVariants || !product.variants) return product?.colors || [];
+    const colors = new Set<string>();
+    product.variants.forEach(v => {
+      if (v.attributes.color) colors.add(v.attributes.color);
+    });
+    return Array.from(colors);
+  }, [product]);
+
+  const availableSizes = useMemo(() => {
+    if (!product?.hasVariants || !product.variants) return product?.sizes || [];
+    const sizes = new Set<string>();
+    product.variants.forEach(v => {
+      if (v.attributes.size) sizes.add(v.attributes.size);
+    });
+    return Array.from(sizes);
+  }, [product]);
+
+  const availableFabrics = useMemo(() => {
+    if (!product?.hasVariants || !product.variants) return product?.fabrics || [];
+    const fabrics = new Set<string>();
+    product.variants.forEach(v => {
+      if (v.attributes.fabric) fabrics.add(v.attributes.fabric);
+    });
+    return Array.from(fabrics);
+  }, [product]);
+
   const increaseQty = () => {
-    if (!product?.inStock) return;
+    if (!inStock) return;
     setQuantity((prev) => {
-      const maxQty = product.quantity > 0 ? product.quantity : prev + 1;
-      return prev < maxQty ? prev + 1 : prev;
+      return prev < displayStock ? prev + 1 : prev;
     });
   };
 
@@ -188,12 +310,20 @@ const ProductDetails = () => {
 
   const handleAddToCart = () => {
     if (!product) return;
-    // Pass selected options along with product
-    addToCart({
-      ...product,
-      selectedColor,
-      selectedSize,
-    } as any, quantity);
+
+    // Build attributes object (only include selected options)
+    const attributes: { size?: string; color?: string; fabric?: string } = {};
+    if (selectedSize) attributes.size = selectedSize;
+    if (selectedColor) attributes.color = selectedColor;
+    if (selectedFabric) attributes.fabric = selectedFabric;
+
+    // Call addToCart with the new signature: (product, quantity, variant, attributes)
+    addToCart(
+      product,                // base product (for snapshot)
+      quantity,
+      selectedVariant || undefined, // variant object (if any)
+      attributes              // selected options
+    );
   };
 
   if (loading) {
@@ -264,7 +394,7 @@ const ProductDetails = () => {
             {/* Main Image */}
             <div className="flex-1 relative rounded-2xl overflow-hidden bg-muted group">
               <img
-                src={product.images[selectedImage] || product.image}
+                src={displayImage}
                 alt={product.name}
                 className="w-full aspect-square object-cover transition-transform duration-500 group-hover:scale-105 cursor-zoom-in"
               />
@@ -286,10 +416,10 @@ const ProductDetails = () => {
 
             <div className="flex flex-wrap items-baseline gap-2 sm:gap-3">
               <span className="text-2xl sm:text-3xl font-bold text-foreground">
-                {formatPrice(product.price)}
+                {formatPrice(displayPrice)}
               </span>
 
-              {product.originalPrice && (
+              {product.originalPrice && displayPrice !== product.originalPrice && (
                 <>
                   <span className="text-base sm:text-xl text-muted-foreground line-through">
                     {formatPrice(product.originalPrice)}
@@ -304,13 +434,13 @@ const ProductDetails = () => {
             </p>
 
             {/* Color Selection */}
-            {product.colors && product.colors.length > 0 && (
+            {availableColors.length > 0 && (
               <div>
                 <h3 className="font-semibold mb-3 text-sm sm:text-base">
                   Color <span className="font-normal text-muted-foreground ml-2">(select one)</span>
                 </h3>
                 <div className="flex flex-wrap gap-3">
-                  {product.colors.map((color, index) => (
+                  {availableColors.map((color, index) => (
                     <button
                       key={index}
                       onClick={() => setSelectedColor(color)}
@@ -332,13 +462,13 @@ const ProductDetails = () => {
             )}
 
             {/* Size Selection */}
-            {product.sizes && product.sizes.length > 0 && (
+            {availableSizes.length > 0 && (
               <div>
                 <h3 className="font-semibold mb-3 text-sm sm:text-base">
                   Size <span className="font-normal text-muted-foreground ml-2">(select one)</span>
                 </h3>
                 <div className="flex flex-wrap gap-2">
-                  {product.sizes.map((size, index) => (
+                  {availableSizes.map((size, index) => (
                     <button
                       key={index}
                       onClick={() => setSelectedSize(size)}
@@ -349,6 +479,30 @@ const ProductDetails = () => {
                       }`}
                     >
                       {size}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Fabric Selection (NEW) */}
+            {availableFabrics.length > 0 && (
+              <div>
+                <h3 className="font-semibold mb-3 text-sm sm:text-base">
+                  Fabric <span className="font-normal text-muted-foreground ml-2">(select one)</span>
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {availableFabrics.map((fabric, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setSelectedFabric(fabric)}
+                      className={`px-4 py-2 rounded-xl border-2 text-sm font-medium transition-all capitalize ${
+                        selectedFabric === fabric
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border hover:border-primary/50 text-foreground"
+                      }`}
+                    >
+                      {fabric}
                     </button>
                   ))}
                 </div>
@@ -373,7 +527,7 @@ const ProductDetails = () => {
                   <button
                     onClick={increaseQty}
                     className="p-3 hover:bg-muted transition-colors rounded-r-xl disabled:opacity-50"
-                    disabled={!product.inStock || quantity >= product.quantity}
+                    disabled={!inStock || quantity >= displayStock}
                     aria-label="Increase quantity"
                   >
                     <Plus className="h-4 w-4" />
@@ -381,7 +535,7 @@ const ProductDetails = () => {
                 </div>
 
                 <span className="text-sm text-muted-foreground">
-                  {product.inStock ? `In Stock (${product.quantity})` : "Out of Stock"}
+                  {inStock ? `In Stock (${displayStock})` : "Out of Stock"}
                 </span>
               </div>
             </div>
@@ -393,7 +547,7 @@ const ProductDetails = () => {
                 size="lg"
                 className="flex-1 w-full"
                 onClick={handleAddToCart}
-                disabled={!product.inStock}
+                disabled={!inStock || (product.hasVariants && !selectedVariant)}
               >
                 <ShoppingCart className="h-5 w-5 mr-2" />
                 Add to Cart
@@ -440,8 +594,10 @@ const ProductDetails = () => {
                 {[
                   ["Material", product.material || "—"],
                   ["Available Sizes", product.sizes?.join(", ") || "—"],
-                  ["Weight", product.weight || "—"],
                   ["Available Colors", product.colors?.length ? `${product.colors.length} color(s)` : "—"],
+                  ["Available Fabrics", product.fabrics?.join(", ") || "—"],
+                  ["Extra Pillows", product.extraPillows ? `${product.extraPillows} included` : "—"],
+                  ["Weight", product.weight || "—"],
                   ["Availability", product.inStock ? "In Stock" : "Out of Stock"],
                 ].map(([label, value], index) => (
                   <tr key={index}>

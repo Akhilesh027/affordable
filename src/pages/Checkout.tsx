@@ -1,4 +1,3 @@
-// src/pages/Checkout.tsx
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,12 +23,14 @@ import {
   XCircle,
   Loader2,
   Ticket,
+  Gift,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { toast } from "sonner";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "https://api.jsgallor.com";
 const WEBSITE = "affordable";
+const FIRST_ORDER_COUPON_CODE = "FIRST10"; // coupon code for first-order discount
 
 type AddressForm = {
   fullName: string;
@@ -158,9 +159,27 @@ const emptyAddress: AddressForm = {
   landmark: "",
 };
 
+// Helper to get color name from hex (if needed)
+const getColorName = (hex: string) => {
+  const colors: Record<string, string> = {
+    "#8B7355": "Brown",
+    "#1C1C1C": "Black",
+    "#F5E6D3": "White",
+    "#4A4A4A": "Grey",
+    "#4A6741": "Green",
+    "#2C3E50": "Blue",
+  };
+  return colors[hex.toUpperCase()] || hex;
+};
+
 const Checkout = () => {
   const navigate = useNavigate();
   const { items, updateQuantity, removeFromCart, subtotal, clearCart } = useCart();
+
+  // First-order detection
+  const [isFirstOrder, setIsFirstOrder] = useState(false);
+  const [checkingFirstOrder, setCheckingFirstOrder] = useState(false);
+  const hasAppliedFirstOrder = useRef(false);
 
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<ApplyCouponResponse["coupon"] | null>(null);
@@ -184,7 +203,7 @@ const Checkout = () => {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cod");
   const [placingOrder, setPlacingOrder] = useState(false);
 
-  // ✅ shipping states
+  // shipping states
   const [shippingCost, setShippingCost] = useState(0);
   const [shippingLoading, setShippingLoading] = useState(false);
   const [shippingMeta, setShippingMeta] = useState<{
@@ -470,6 +489,49 @@ const Checkout = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subtotal, shippingCost, items.length, items]);
 
+  // Fetch user profile to determine if first order
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      const { token, userId } = getAuth();
+      if (!token || !userId) return;
+      try {
+        setCheckingFirstOrder(true);
+        const res = await fetch(`${API_BASE}/api/affordable/user/profile`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          // Assuming the API returns totalOrders
+          const totalOrders = data?.totalOrders || 0;
+          setIsFirstOrder(totalOrders === 0);
+        }
+      } catch (error) {
+        console.error("Failed to fetch user profile", error);
+      } finally {
+        setCheckingFirstOrder(false);
+      }
+    };
+    fetchUserProfile();
+  }, []);
+
+  // Auto-apply first-order coupon if eligible
+  useEffect(() => {
+    const applyFirstOrderCoupon = async () => {
+      if (
+        isFirstOrder &&
+        !appliedCoupon &&
+        !hasAppliedFirstOrder.current &&
+        !applyingCoupon &&
+        items.length > 0
+      ) {
+        hasAppliedFirstOrder.current = true;
+        // Silent apply (no success toast)
+        await applyCouponByCode(FIRST_ORDER_COUPON_CODE, true);
+      }
+    };
+    applyFirstOrderCoupon();
+  }, [isFirstOrder, appliedCoupon, items, applyingCoupon]);
+
   const fetchEligibleCoupons = async () => {
     try {
       setLoadingEligibleCoupons(true);
@@ -505,10 +567,10 @@ const Checkout = () => {
     }
   };
 
-  const applyCouponByCode = async (codeInput: string) => {
+  const applyCouponByCode = async (codeInput: string, silent = false) => {
     const code = codeInput.trim().toUpperCase();
     if (!code) {
-      toast.error("Please enter a coupon code");
+      if (!silent) toast.error("Please enter a coupon code");
       return;
     }
 
@@ -537,19 +599,21 @@ const Checkout = () => {
       setDiscount(Number(data.discount || 0));
       setShippingDiscount(Number(data.shippingDiscount || 0));
 
-      toast.success(`Coupon applied: ${data?.coupon?.code || code}`);
+      if (!silent) {
+        toast.success(`Coupon applied: ${data?.coupon?.code || code}`);
+      }
     } catch (e: any) {
       setAppliedCoupon(null);
       setDiscount(0);
       setShippingDiscount(0);
-      toast.error(e?.message || "Invalid coupon code");
+      if (!silent) toast.error(e?.message || "Invalid coupon code");
     } finally {
       setApplyingCoupon(false);
     }
   };
 
   const applyCoupon = async () => {
-    await applyCouponByCode(couponCode);
+    await applyCouponByCode(couponCode, false);
   };
 
   const reApplyCoupon = async () => {
@@ -612,6 +676,7 @@ const Checkout = () => {
     toast.error("Please select an address or add a new one");
   };
 
+  // UPDATED buildOrderPayload – includes variantId and attributes
   const buildOrderPayload = (args?: {
     addressIdOverride?: string;
     payment?: any;
@@ -633,9 +698,15 @@ const Checkout = () => {
 
       return {
         productId: it.productId,
+        variantId: it.variantId || null,                     // include variantId
         quantity: Number(it.quantity || 1),
         price,
         finalPrice,
+        attributes: {                                          // include attributes
+          size: it.attributes?.size || null,
+          color: it.attributes?.color || null,
+          fabric: it.attributes?.fabric || null,
+        },
         productSnapshot: snap,
         categoryId:
           it.categoryId ||
@@ -1004,7 +1075,7 @@ const Checkout = () => {
                 </div>
 
                 {items.map((item: any) => {
-                  const pid = item.productId;
+                  const itemId = item._id;
                   const snap = item.productSnapshot || {};
                   const name = snap.name || "Product";
                   const price = Number(
@@ -1017,14 +1088,19 @@ const Checkout = () => {
                       : snap.category?.name || snap.category?.slug || "";
                   const inStock = snap.inStock !== false;
 
+                  const attributes = item.attributes || {};
+                  const selectedColor = attributes.color;
+                  const selectedSize = attributes.size;
+                  const selectedFabric = attributes.fabric;
+
                   return (
                     <div
-                      key={pid}
+                      key={itemId}
                       className="p-4 bg-card rounded-2xl border border-border"
                     >
                       <div className="flex flex-col md:grid md:grid-cols-12 gap-4 md:items-center">
                         <div className="md:col-span-5 flex items-start sm:items-center gap-3 sm:gap-4">
-                          <Link to={`/product/${pid}`} className="shrink-0">
+                          <Link to={`/product/${item.productId}`} className="shrink-0">
                             <img
                               src={image}
                               alt={name}
@@ -1034,7 +1110,7 @@ const Checkout = () => {
 
                           <div className="min-w-0">
                             <Link
-                              to={`/product/${pid}`}
+                              to={`/product/${item.productId}`}
                               className="font-medium hover:text-primary transition-colors line-clamp-2"
                             >
                               {name}
@@ -1043,6 +1119,29 @@ const Checkout = () => {
                               <p className="text-sm text-muted-foreground capitalize">
                                 {String(category).replace(/-/g, " ")}
                               </p>
+                            )}
+                            {(selectedColor || selectedSize || selectedFabric) && (
+                              <div className="flex flex-wrap gap-2 mt-1 text-xs">
+                                {selectedColor && (
+                                  <span className="inline-flex items-center gap-1 bg-muted px-2 py-0.5 rounded-full">
+                                    <span
+                                      className="w-3 h-3 rounded-full"
+                                      style={{ backgroundColor: selectedColor }}
+                                    />
+                                    {getColorName(selectedColor)}
+                                  </span>
+                                )}
+                                {selectedSize && (
+                                  <span className="bg-muted px-2 py-0.5 rounded-full">
+                                    Size: {selectedSize}
+                                  </span>
+                                )}
+                                {selectedFabric && (
+                                  <span className="bg-muted px-2 py-0.5 rounded-full capitalize">
+                                    {selectedFabric}
+                                  </span>
+                                )}
+                              </div>
                             )}
                             {!inStock && (
                               <p className="text-xs text-destructive mt-1">Out of Stock</p>
@@ -1061,7 +1160,7 @@ const Checkout = () => {
                           <div className="flex items-center gap-2">
                             <div className="flex items-center border border-border rounded-xl">
                               <button
-                                onClick={() => updateQuantity(pid, item.quantity - 1)}
+                                onClick={() => updateQuantity(itemId, item.quantity - 1)}
                                 className="p-2 hover:bg-muted transition-colors rounded-l-xl"
                                 disabled={item.quantity <= 1}
                               >
@@ -1071,7 +1170,7 @@ const Checkout = () => {
                                 {item.quantity}
                               </span>
                               <button
-                                onClick={() => updateQuantity(pid, item.quantity + 1)}
+                                onClick={() => updateQuantity(itemId, item.quantity + 1)}
                                 className="p-2 hover:bg-muted transition-colors rounded-r-xl"
                               >
                                 <Plus className="h-4 w-4" />
@@ -1079,7 +1178,7 @@ const Checkout = () => {
                             </div>
 
                             <button
-                              onClick={() => removeFromCart(pid)}
+                              onClick={() => removeFromCart(itemId)}
                               className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
                               title="Remove item"
                             >
@@ -1136,10 +1235,18 @@ const Checkout = () => {
                     </div>
 
                     {appliedCoupon ? (
-                      <div className="text-sm text-green-600">
-                        Applied <span className="font-semibold">{appliedCoupon.code}</span> • Saved{" "}
-                        <span className="font-semibold">
-                          {formatPrice(discount + shippingDiscount)}
+                      <div className="text-sm text-green-600 flex items-center gap-2 flex-wrap">
+                        {appliedCoupon.code === FIRST_ORDER_COUPON_CODE && (
+                          <span className="inline-flex items-center gap-1 bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                            <Gift className="h-3 w-3" />
+                            First Order
+                          </span>
+                        )}
+                        <span>
+                          Applied <span className="font-semibold">{appliedCoupon.code}</span> • Saved{" "}
+                          <span className="font-semibold">
+                            {formatPrice(discount + shippingDiscount)}
+                          </span>
                         </span>
                       </div>
                     ) : (
@@ -1642,9 +1749,13 @@ const Checkout = () => {
                 )}
 
                 {(discount > 0 || shippingDiscount > 0) && appliedCoupon?.code && (
-                  <div className="text-xs text-muted-foreground break-words">
-                    Coupon:{" "}
-                    <span className="font-medium text-foreground">{appliedCoupon.code}</span>
+                  <div className="text-xs text-muted-foreground break-words flex items-center gap-1">
+                    {appliedCoupon.code === FIRST_ORDER_COUPON_CODE && (
+                      <Gift className="h-3 w-3 text-primary" />
+                    )}
+                    <span>
+                      Coupon: <span className="font-medium text-foreground">{appliedCoupon.code}</span>
+                    </span>
                   </div>
                 )}
 

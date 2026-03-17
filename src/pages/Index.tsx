@@ -209,55 +209,59 @@ const Index = () => {
     <Layout>
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-gradient-to-br from-amber-light to-background">
-        <div className="container mx-auto px-4 py-16 md:py-24">
-          <div className="grid lg:grid-cols-2 gap-8 items-center">
-            <div className="space-y-6 animate-fade-up">
-              <span className="inline-block px-4 py-1.5 bg-primary/20 text-primary-foreground rounded-full text-sm font-medium">
-                ✨ New Collection 2024
-              </span>
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground leading-tight">
-                Design Your Dream
-                <span className="text-gradient block">Living Space</span>
-              </h1>
-              <p className="text-lg text-muted-foreground max-w-md">
-                Discover premium furniture that combines elegance with comfort. Transform your home with our curated collection.
-              </p>
-              <div className="flex flex-wrap gap-4">
-                <Link to="/categories">
-                  <Button variant="hero" size="lg">
-                    Shop Now
-                    <ArrowRight className="h-5 w-5 ml-1" />
-                  </Button>
-                </Link>
-                <Link to="/categories">
-                  <Button variant="outline" size="lg">
-                    Explore Collection
-                  </Button>
-                </Link>
-              </div>
-            </div>
+  <div className="container mx-auto px-4 py-16 md:py-24">
+    <div className="grid lg:grid-cols-2 gap-8 items-center">
+      <div className="space-y-6 animate-fade-up">
+        <span className="inline-block px-4 py-1.5 bg-primary/20 text-primary-foreground rounded-full text-sm font-medium">
+          ✨ New Collection 2024
+        </span>
+        <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground leading-tight">
+          Design Your Dream
+          <span className="text-gradient block">Living Space</span>
+        </h1>
+        {/* 👇 New offer banner */}
+        <div className="inline-block px-5 py-2 bg-primary/10 text-primary rounded-lg font-semibold">
+          🎉 Get 10% off on your first order
+        </div>
+        <p className="text-lg text-muted-foreground max-w-md">
+          Discover premium furniture that combines elegance with comfort. Transform your home with our curated collection.
+        </p>
+        <div className="flex flex-wrap gap-4">
+          <Link to="/categories">
+            <Button variant="hero" size="lg">
+              Shop Now
+              <ArrowRight className="h-5 w-5 ml-1" />
+            </Button>
+          </Link>
+          <Link to="/categories">
+            <Button variant="outline" size="lg">
+              Explore Collection
+            </Button>
+          </Link>
+        </div>
+      </div>
 
-            <div className="relative animate-fade-up" style={{ animationDelay: "0.2s" }}>
-              <div className="relative rounded-3xl overflow-hidden shadow-strong">
-                <img
-                  src="https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800&h=600&fit=crop"
-                  alt="Premium Sofa"
-                  className="w-full h-[400px] md:h-[500px] object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
+      <div className="relative animate-fade-up" style={{ animationDelay: "0.2s" }}>
+        <div className="relative rounded-3xl overflow-hidden shadow-strong">
+          <img
+            src="https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800&h=600&fit=crop"
+            alt="Premium Sofa"
+            className="w-full h-[400px] md:h-[500px] object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
 
-                <div className="absolute bottom-6 left-6 bg-white/90 backdrop-blur-sm rounded-2xl p-4 shadow-lg animate-float">
-                  <p className="text-sm text-muted-foreground">Starting from</p>
-                  <p className="text-2xl font-bold text-foreground">₹12,999</p>
-                </div>
-              </div>
-
-              <div className="absolute -top-4 -right-4 w-24 h-24 bg-primary/20 rounded-full blur-2xl" />
-              <div className="absolute -bottom-4 -left-4 w-32 h-32 bg-primary/10 rounded-full blur-3xl" />
-            </div>
+          <div className="absolute bottom-6 left-6 bg-white/90 backdrop-blur-sm rounded-2xl p-4 shadow-lg animate-float">
+            <p className="text-sm text-muted-foreground">Starting from</p>
+            <p className="text-2xl font-bold text-foreground">₹12,999</p>
           </div>
         </div>
-      </section>
+
+        <div className="absolute -top-4 -right-4 w-24 h-24 bg-primary/20 rounded-full blur-2xl" />
+        <div className="absolute -bottom-4 -left-4 w-32 h-32 bg-primary/10 rounded-full blur-3xl" />
+      </div>
+    </div>
+  </div>
+</section>
 
       {/* Features */}
       <section className="py-12 border-b border-border/50">
@@ -352,7 +356,7 @@ const Index = () => {
             </div>
             <div className="relative p-8 md:p-12 flex flex-col md:flex-row items-center justify-between gap-6">
               <div>
-                <h2 className="text-2xl md:text-3xl font-bold">Get 20% Off Your First Order</h2>
+                <h2 className="text-2xl md:text-3xl font-bold">Get 10% Off Your First Order</h2>
                 <p className="text-background/80 mt-2">Sign up for our newsletter and enjoy exclusive discounts</p>
               </div>
               <Link to="/signup">

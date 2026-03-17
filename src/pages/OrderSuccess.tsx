@@ -12,24 +12,49 @@ import {
 } from "lucide-react";
 import { useMemo } from "react";
 
+// Helper to get color name from hex
+const getColorName = (hex: string) => {
+  const colors: Record<string, string> = {
+    "#8B7355": "Brown",
+    "#1C1C1C": "Black",
+    "#F5E6D3": "White",
+    "#4A4A4A": "Grey",
+    "#4A6741": "Green",
+    "#2C3E50": "Blue",
+  };
+  return colors[hex.toUpperCase()] || hex;
+};
+
 const OrderSuccess = () => {
   const navigate = useNavigate();
   const { state } = useLocation() as any;
 
-  // When user directly opens /order-success without state
   const order = state?.order || null;
 
   const totals = useMemo(() => {
-    const subtotal = order?.pricing?.subtotal ?? state?.subtotal ?? 0;
-    const discount = order?.pricing?.discount ?? state?.discount ?? 0;
-    const shippingCost = order?.pricing?.shippingCost ?? state?.shippingCost ?? 0;
-    const total = order?.pricing?.total ?? state?.total ?? subtotal - discount + shippingCost;
-
-    return { subtotal, discount, shippingCost, total };
+    if (order?.pricing) {
+      return {
+        subtotal: order.pricing.subtotal || 0,
+        discount: order.pricing.discount || 0,
+        shippingCost: order.pricing.shippingCost || 0,
+        total: order.pricing.total || 0,
+      };
+    }
+    return {
+      subtotal: state?.subtotal ?? 0,
+      discount: state?.discount ?? 0,
+      shippingCost: state?.shippingCost ?? 0,
+      total: state?.total ?? 0,
+    };
   }, [order, state]);
 
   const address = order?.addressId || state?.address || null;
   const items = order?.items || state?.items || [];
+
+  const paymentMethod = order?.payment?.method || state?.paymentMethod || "cod";
+  const paymentStatus = order?.payment?.status || "pending";
+  const orderStatus = order?.status || "placed";
+  const orderId = order?._id || order?.orderId || state?.orderId || "—";
 
   if (!order && !state) {
     return (
@@ -51,11 +76,6 @@ const OrderSuccess = () => {
       </Layout>
     );
   }
-
-  const orderId = order?._id || order?.orderId || "—";
-  const paymentMethod = order?.payment?.method || state?.paymentMethod || "cod";
-  const paymentStatus = order?.payment?.status || "pending";
-  const orderStatus = order?.status || "placed";
 
   return (
     <Layout>
@@ -178,6 +198,9 @@ const OrderSuccess = () => {
               <span className="font-semibold uppercase">
                 {paymentMethod === "cod" ? "COD" : paymentMethod}
               </span>
+              {paymentMethod === "razorpay" && paymentStatus === "paid" && (
+                <span className="ml-2 text-green-600">(Paid)</span>
+              )}
             </div>
           </div>
         </div>
@@ -190,17 +213,21 @@ const OrderSuccess = () => {
           </div>
 
           <div className="space-y-4">
-            {items.map((it: any) => {
+            {items.map((it: any, index: number) => {
               const snap = it.productSnapshot || {};
               const pid = it.productId?._id || it.productId || snap._id || "";
               const name = snap.name || "Product";
               const image = snap.image || "";
               const price = Number(snap.price || 0);
               const qty = Number(it.quantity || 1);
+              const attributes = it.attributes || {};
+              const selectedColor = attributes.color;
+              const selectedSize = attributes.size;
+              const selectedFabric = attributes.fabric;
 
               return (
                 <div
-                  key={String(pid) + String(name)}
+                  key={it._id || pid || index}
                   className="flex items-center gap-4 p-3 rounded-2xl border border-border"
                 >
                   <img
@@ -214,6 +241,30 @@ const OrderSuccess = () => {
                       <p className="text-xs text-muted-foreground capitalize">
                         {String(snap.category).replace(/-/g, " ")}
                       </p>
+                    )}
+                    {/* Variant attributes */}
+                    {(selectedColor || selectedSize || selectedFabric) && (
+                      <div className="flex flex-wrap gap-2 mt-1 text-xs">
+                        {selectedColor && (
+                          <span className="inline-flex items-center gap-1 bg-muted px-2 py-0.5 rounded-full">
+                            <span
+                              className="w-3 h-3 rounded-full"
+                              style={{ backgroundColor: selectedColor }}
+                            />
+                            {getColorName(selectedColor)}
+                          </span>
+                        )}
+                        {selectedSize && (
+                          <span className="bg-muted px-2 py-0.5 rounded-full">
+                            Size: {selectedSize}
+                          </span>
+                        )}
+                        {selectedFabric && (
+                          <span className="bg-muted px-2 py-0.5 rounded-full capitalize">
+                            {selectedFabric}
+                          </span>
+                        )}
+                      </div>
                     )}
                     <p className="text-sm text-muted-foreground mt-1">
                       Qty: <span className="font-medium text-foreground">{qty}</span>

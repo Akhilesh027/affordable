@@ -13,6 +13,12 @@ const API_BASE = "https://api.jsgallor.com";
 type OrderItem = {
   productId: string | { _id: string };
   quantity: number;
+  variantId?: string | null;
+  attributes?: {
+    size?: string;
+    color?: string;
+    fabric?: string;
+  };
   productSnapshot?: {
     name?: string;
     image?: string;
@@ -44,12 +50,25 @@ type Order = {
     shippingCost?: number;
   };
   payment?: {
-    method?: "cod" | "upi" | "card";
+    method?: "cod" | "razorpay" | "card";
     status?: "pending" | "paid" | "failed";
     upiId?: string;
     cardLast4?: string;
   };
   addressId?: Address; // populated address
+};
+
+// Helper to get color name from hex
+const getColorName = (hex: string) => {
+  const colors: Record<string, string> = {
+    "#8B7355": "Brown",
+    "#1C1C1C": "Black",
+    "#F5E6D3": "White",
+    "#4A4A4A": "Grey",
+    "#4A6741": "Green",
+    "#2C3E50": "Blue",
+  };
+  return colors[hex.toUpperCase()] || hex;
 };
 
 const Orders = () => {
@@ -78,14 +97,17 @@ const Orders = () => {
 
     try {
       setLoading(true);
+      // Use the authenticated endpoint /my
       const res = await fetch(`${API_BASE}/api/affordable/orders/${auth.userId}`, {
         headers: { Authorization: `Bearer ${auth.token}` },
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Failed to fetch orders");
+      if (!res.ok) throw new Error(data?.message || "Failed to fetch orders");
 
-      setOrders(data?.orders || []);
+      // The backend returns { data: orders } where orders is an array
+      const ordersData = data?.data || [];
+      setOrders(Array.isArray(ordersData) ? ordersData : []);
     } catch (e: any) {
       toast.error(e?.message || "Failed to fetch orders");
     } finally {
@@ -105,7 +127,7 @@ const Orders = () => {
     shipped: { icon: Truck, label: "Shipped", className: "bg-blue-100 text-blue-700" },
     confirmed: { icon: Clock, label: "Confirmed", className: "bg-purple-100 text-purple-700" },
     placed: { icon: Clock, label: "Placed", className: "bg-yellow-100 text-yellow-700" },
-    cancelled: { icon: Package, label: "Cancelled", className: "bg-red-100 text-red-700" },
+    cancelled: { icon: X, label: "Cancelled", className: "bg-red-100 text-red-700" },
   } as const;
 
   const formatDate = (iso: string) => {
@@ -233,6 +255,7 @@ const Orders = () => {
                       const name = snap.name || "Product";
                       const image = snap.image || "";
                       const qty = item.quantity || 1;
+                      const attributes = item.attributes || {};
 
                       return (
                         <div
@@ -246,6 +269,30 @@ const Orders = () => {
                           />
                           <div className="flex-1 min-w-0">
                             <p className="font-medium line-clamp-1">{name}</p>
+                            {/* Variant attributes */}
+                            {(attributes.color || attributes.size || attributes.fabric) && (
+                              <div className="flex flex-wrap gap-2 mt-1 text-xs">
+                                {attributes.color && (
+                                  <span className="inline-flex items-center gap-1 bg-muted px-2 py-0.5 rounded-full">
+                                    <span
+                                      className="w-3 h-3 rounded-full"
+                                      style={{ backgroundColor: attributes.color }}
+                                    />
+                                    {getColorName(attributes.color)}
+                                  </span>
+                                )}
+                                {attributes.size && (
+                                  <span className="bg-muted px-2 py-0.5 rounded-full">
+                                    Size: {attributes.size}
+                                  </span>
+                                )}
+                                {attributes.fabric && (
+                                  <span className="bg-muted px-2 py-0.5 rounded-full capitalize">
+                                    {attributes.fabric}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                             <p className="text-sm text-muted-foreground">Qty: {qty}</p>
                           </div>
                         </div>
@@ -404,8 +451,8 @@ const Orders = () => {
                     Status:{" "}
                     <span className="font-semibold capitalize">{activeOrder.payment?.status || "pending"}</span>
                   </p>
-                  {activeOrder.payment?.method === "upi" && activeOrder.payment?.upiId && (
-                    <p className="text-muted-foreground">UPI: {activeOrder.payment.upiId}</p>
+                  {activeOrder.payment?.method === "razorpay" && activeOrder.payment?.status === "paid" && (
+                    <p className="text-green-600">Paid via Razorpay</p>
                   )}
                   {activeOrder.payment?.method === "card" && activeOrder.payment?.cardLast4 && (
                     <p className="text-muted-foreground">Card: **** {activeOrder.payment.cardLast4}</p>
@@ -423,6 +470,7 @@ const Orders = () => {
                     const image = snap.image || "";
                     const price = Number(snap.price || 0);
                     const qty = Number(it.quantity || 1);
+                    const attributes = it.attributes || {};
 
                     return (
                       <div key={idx} className="flex items-center gap-3">
@@ -433,6 +481,30 @@ const Orders = () => {
                         />
                         <div className="flex-1 min-w-0">
                           <p className="font-medium line-clamp-1">{name}</p>
+                          {/* Variant attributes */}
+                          {(attributes.color || attributes.size || attributes.fabric) && (
+                            <div className="flex flex-wrap gap-2 mt-1 text-xs">
+                              {attributes.color && (
+                                <span className="inline-flex items-center gap-1 bg-muted px-2 py-0.5 rounded-full">
+                                  <span
+                                    className="w-3 h-3 rounded-full"
+                                    style={{ backgroundColor: attributes.color }}
+                                  />
+                                  {getColorName(attributes.color)}
+                                </span>
+                              )}
+                              {attributes.size && (
+                                <span className="bg-muted px-2 py-0.5 rounded-full">
+                                  Size: {attributes.size}
+                                </span>
+                              )}
+                              {attributes.fabric && (
+                                <span className="bg-muted px-2 py-0.5 rounded-full capitalize">
+                                  {attributes.fabric}
+                                </span>
+                              )}
+                            </div>
+                          )}
                           <p className="text-xs text-muted-foreground">
                             Qty: {qty} • {formatPrice(price)}
                           </p>

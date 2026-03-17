@@ -140,7 +140,7 @@ export const Navbar = () => {
                 <img src={logo} alt="JSGALORE Logo" className="w-8 h-8 object-contain" />
               </div>
               <div className="hidden sm:block">
-                <h1 className="font-bold text-lg text-foreground leading-tight">JSGALORE</h1>
+                <h1 className="font-bold text-lg text-foreground leading-tight">JS GALLOR </h1>
                 <p className="text-xs text-muted-foreground">Furniture & Interiors</p>
               </div>
             </Link>
