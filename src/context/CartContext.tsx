@@ -3,7 +3,6 @@ import { toast } from "sonner";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "https://api.jsgallor.com";
 
-// Updated types to include variant details
 export type CartSnapshot = {
   name: string;
   price: number;
@@ -15,7 +14,7 @@ export type CartSnapshot = {
 };
 
 export type BackendCartItem = {
-  _id: string;                       // unique cart item id
+  _id: string;
   productId: string;
   variantId?: string | null;
   quantity: number;
@@ -55,9 +54,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { token, userId, isLoggedIn } = getAuth();
 
     if (!isLoggedIn) {
-      // Guest fallback (optional, can be removed if you require login)
-      const saved = localStorage.getItem("cart");
-      setItems(saved ? JSON.parse(saved) : []);
+      setItems([]); // no guest cart
       return;
     }
 
@@ -78,8 +75,19 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     refreshCart();
   }, []);
 
+  const redirectToLogin = () => {
+    const currentPath = window.location.pathname + window.location.search;
+    const loginUrl = `/login?redirect=${encodeURIComponent(currentPath)}`;
+    window.location.href = loginUrl;
+  };
+
   const addToCart = async (product: any, quantity = 1, variant?: any, attributes?: any) => {
     const { token, userId, isLoggedIn } = getAuth();
+
+    if (!isLoggedIn) {
+      redirectToLogin();
+      return;
+    }
 
     const productId = product?._id || product?.id;
     if (!productId) {
@@ -87,22 +95,15 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    // Build product snapshot (include variant price if available)
     const snapshot = {
       name: product.name,
-      price: variant?.price ?? product.price, // use variant price if provided
+      price: variant?.price ?? product.price,
       originalPrice: product.originalPrice,
       image: product.image,
       category: product.category,
       inStock: product.inStock,
       colors: product.colors,
     };
-
-    // Guest fallback (optional)
-    if (!isLoggedIn) {
-      // ... (similar but with attributes) - omitted for brevity
-      return;
-    }
 
     try {
       const res = await fetch(`${API_BASE}/api/cart/affordable/add`, {
@@ -135,12 +136,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { token, userId, isLoggedIn } = getAuth();
 
     if (!isLoggedIn) {
-      // Guest fallback
-      setItems(prev => {
-        const next = prev.map(i => i._id === itemId ? { ...i, quantity } : i);
-        localStorage.setItem("cart", JSON.stringify(next));
-        return next;
-      });
+      redirectToLogin();
       return;
     }
 
@@ -166,12 +162,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { token, userId, isLoggedIn } = getAuth();
 
     if (!isLoggedIn) {
-      setItems(prev => {
-        const next = prev.filter(i => i._id !== itemId);
-        localStorage.setItem("cart", JSON.stringify(next));
-        return next;
-      });
-      toast.info("Item removed");
+      redirectToLogin();
       return;
     }
 
@@ -195,9 +186,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { token, userId, isLoggedIn } = getAuth();
 
     if (!isLoggedIn) {
-      setItems([]);
-      localStorage.removeItem("cart");
-      toast.info("Cart cleared");
+      redirectToLogin();
       return;
     }
 
