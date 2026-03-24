@@ -15,14 +15,11 @@ type BackendProduct = {
   price: number;
   originalPrice?: number;
   image: string;
-
-  // ✅ from your backend
   quantity?: number;
-  availability?: string; // "In Stock"
-  color?: string; // "red" (single)
+  availability?: string;
+  color?: string;
   status?: string;
   tier?: string;
-
   rating?: number;
   reviews?: number;
   tags?: string[];
@@ -43,7 +40,6 @@ type UiCategory = {
   count: number;
 };
 
-// ✅ This is the format your UI grid/cards expect
 type UiProduct = {
   _id: string;
   id: string;
@@ -77,23 +73,21 @@ const normalizeCategoryName = (slug: string) =>
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ");
 
-// ✅ map backend product -> UI product (stock fix)
 const mapProduct = (p: BackendProduct): UiProduct => {
   const qty = Number(p.quantity ?? 0);
   const availability = String(p.availability || "").toLowerCase();
-
   const inStock = qty > 0 || availability.includes("in stock");
 
   return {
     _id: p._id,
-    id: p._id, // ✅ so old code using id still works
+    id: p._id,
     name: p.name,
     category: (p.category || "other").toLowerCase(),
     price: Number(p.price || 0),
     originalPrice: p.originalPrice ? Number(p.originalPrice) : undefined,
     image: p.image,
     inStock,
-    colors: p.color ? [p.color] : [], // ✅ convert single color -> array
+    colors: p.color ? [p.color] : [],
     rating: Number(p.rating ?? 4.5),
     reviews: Number(p.reviews ?? 0),
     tags: p.tags ?? [],
@@ -127,7 +121,6 @@ const Index = () => {
         const prods = await fetchProducts();
         setProductsRaw(prods);
 
-        // Optional categories endpoint (fallback to product categories)
         let catsFromBackend: BackendCategory[] = [];
         try {
           catsFromBackend = await fetchCategories();
@@ -186,20 +179,25 @@ const Index = () => {
     load();
   }, []);
 
-  // ✅ Mapped UI products with stock info
+  // ✅ Find a product from the sofa category
+  const sofaProductRaw = useMemo(
+    () => productsRaw.find((p) => p.category?.toLowerCase().includes("sofa")),
+    [productsRaw]
+  );
+
+  // ✅ Map it to UI format (if exists)
+  const sofaProductUi = sofaProductRaw ? mapProduct(sofaProductRaw) : null;
+
   const products = useMemo(() => productsRaw.map(mapProduct), [productsRaw]);
 
   const featuredProducts = useMemo(() => {
     const tagged = products.filter((p) => p.tags.includes("featured") || p.tags.includes("bestseller"));
     if (tagged.length >= 8) return tagged.slice(0, 8);
-
-    // ✅ if no tags, show only inStock products first
     const sorted = [...products].sort((a, b) => {
       const stockScore = Number(b.inStock) - Number(a.inStock);
       if (stockScore !== 0) return stockScore;
       return Number(b.rating || 0) - Number(a.rating || 0);
     });
-
     return sorted.slice(0, 8);
   }, [products]);
 
@@ -209,71 +207,82 @@ const Index = () => {
     <Layout>
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-gradient-to-br from-amber-light to-background">
-  <div className="container mx-auto px-4 py-16 md:py-24">
-    <div className="grid lg:grid-cols-2 gap-8 items-center">
-      <div className="space-y-6 animate-fade-up">
-        <span className="inline-block px-4 py-1.5 bg-primary/20 text-primary-foreground rounded-full text-sm font-medium">
-          ✨ New Collection 2024
-        </span>
-        <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground leading-tight">
-          Design Your Dream
-          <span className="text-gradient block">Living Space</span>
-        </h1>
-        {/* 👇 New offer banner */}
-        <div className="inline-block px-5 py-2 bg-primary/10 text-primary rounded-lg font-semibold">
-          🎉 Get 10% off on your first order
-        </div>
-        <p className="text-lg text-muted-foreground max-w-md">
-          Discover premium furniture that combines elegance with comfort. Transform your home with our curated collection.
-        </p>
-        <div className="flex flex-wrap gap-4">
-          <Link to="/categories">
-            <Button variant="hero" size="lg">
-              Shop Now
-              <ArrowRight className="h-5 w-5 ml-1" />
-            </Button>
-          </Link>
-          <Link to="/categories">
-            <Button variant="outline" size="lg">
-              Explore Collection
-            </Button>
-          </Link>
-        </div>
-      </div>
+        <div className="container mx-auto px-4 py-16 md:py-24">
+          <div className="grid lg:grid-cols-2 gap-8 items-center">
+            <div className="space-y-6 animate-fade-up">
+              <span className="inline-block px-4 py-1.5 bg-primary/20 text-primary-foreground rounded-full text-sm font-medium">
+                ✨ New Collection 2026
+              </span>
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground leading-tight">
+                Design Your Dream
+                <span className="text-gradient block">Living Space</span>
+              </h1>
+              <div className="inline-block px-5 py-2 bg-primary/10 text-primary rounded-lg font-semibold">
+                🎉 Get 10% off on your first order
+              </div>
+              <p className="text-lg text-muted-foreground max-w-md">
+                Discover premium furniture that combines elegance with comfort. Transform your home with our curated
+                collection.
+              </p>
+              <div className="flex flex-wrap gap-4">
+                <Link to="/categories">
+                  <Button variant="hero" size="lg">
+                    Shop Now
+                    <ArrowRight className="h-5 w-5 ml-1" />
+                  </Button>
+                </Link>
+                <Link to="/categories">
+                  <Button variant="outline" size="lg">
+                    Explore Collection
+                  </Button>
+                </Link>
+              </div>
+            </div>
 
-      <div className="relative animate-fade-up" style={{ animationDelay: "0.2s" }}>
-        <div className="relative rounded-3xl overflow-hidden shadow-strong">
-          <img
-            src="https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800&h=600&fit=crop"
-            alt="Premium Sofa"
-            className="w-full h-[400px] md:h-[500px] object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
+            <div className="relative animate-fade-up" style={{ animationDelay: "0.2s" }}>
+              <div className="relative rounded-3xl overflow-hidden shadow-strong">
+                {/* Dynamic image: sofa product or fallback */}
+                <img
+                  src={
+                    sofaProductUi?.image ||
+                    "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800&h=600&fit=crop"
+                  }
+                  alt={sofaProductUi?.name || "Premium Sofa"}
+                  className="w-full h-[400px] md:h-[500px] object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
 
-          <div className="absolute bottom-6 left-6 bg-white/90 backdrop-blur-sm rounded-2xl p-4 shadow-lg animate-float">
-            <p className="text-sm text-muted-foreground">Starting from</p>
-            <p className="text-2xl font-bold text-foreground">₹12,999</p>
+                <div className="absolute bottom-6 left-6 bg-white/90 backdrop-blur-sm rounded-2xl p-4 shadow-lg animate-float">
+                  <p className="text-sm text-muted-foreground">
+                    {sofaProductUi ? "Now only" : "Starting from"}
+                  </p>
+                  <p className="text-2xl font-bold text-foreground">
+                    {sofaProductUi ? `₹${sofaProductUi.price.toLocaleString()}` : "₹12,999"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="absolute -top-4 -right-4 w-24 h-24 bg-primary/20 rounded-full blur-2xl" />
+              <div className="absolute -bottom-4 -left-4 w-32 h-32 bg-primary/10 rounded-full blur-3xl" />
+            </div>
           </div>
         </div>
-
-        <div className="absolute -top-4 -right-4 w-24 h-24 bg-primary/20 rounded-full blur-2xl" />
-        <div className="absolute -bottom-4 -left-4 w-32 h-32 bg-primary/10 rounded-full blur-3xl" />
-      </div>
-    </div>
-  </div>
-</section>
+      </section>
 
       {/* Features */}
       <section className="py-12 border-b border-border/50">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {[
-              { icon: Truck, title: "Free Delivery", desc: "On orders above ₹5000" },
-              { icon: Shield, title: "2 Year Warranty", desc: "On all products" },
-              { icon: RefreshCw, title: "Easy Returns", desc: "30-day return policy" },
+              { icon: Truck, title: "Free Delivery", desc: "On all orders" },
+              { icon: Shield, title: "5 Year Warranty", desc: "On all products" },
+  { icon: RefreshCw, title: "Only Replacement", desc: "Replacement available for damaged items" },
               { icon: Headphones, title: "24/7 Support", desc: "Dedicated support" },
             ].map((feature, index) => (
-              <div key={index} className="flex flex-col items-center text-center p-4 rounded-2xl hover:bg-muted/50 transition-colors">
+              <div
+                key={index}
+                className="flex flex-col items-center text-center p-4 rounded-2xl hover:bg-muted/50 transition-colors"
+              >
                 <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
                   <feature.icon className="h-6 w-6 text-primary" />
                 </div>
@@ -324,7 +333,11 @@ const Index = () => {
       {/* Featured Products */}
       <section className="py-12 md:py-16 bg-muted/30">
         <div className="container mx-auto px-4">
-          <ProductGrid products={featuredProducts as any} title="Featured Products" subtitle="Handpicked favorites for your home" />
+          <ProductGrid
+            products={featuredProducts as any}
+            title="Featured Products"
+            subtitle="Handpicked favorites for your home"
+          />
           <div className="text-center mt-8">
             <Link to="/categories">
               <Button variant="outline" size="lg">
@@ -339,7 +352,11 @@ const Index = () => {
       {/* All Products */}
       <section className="py-12 md:py-16">
         <div className="container mx-auto px-4">
-          <ProductGrid products={homeProducts as any} title="Our Collection" subtitle="Discover our complete range of furniture" />
+          <ProductGrid
+            products={homeProducts as any}
+            title="Our Collection"
+            subtitle="Discover our complete range of furniture"
+          />
         </div>
       </section>
 
@@ -357,7 +374,9 @@ const Index = () => {
             <div className="relative p-8 md:p-12 flex flex-col md:flex-row items-center justify-between gap-6">
               <div>
                 <h2 className="text-2xl md:text-3xl font-bold">Get 10% Off Your First Order</h2>
-                <p className="text-background/80 mt-2">Sign up for our newsletter and enjoy exclusive discounts</p>
+                <p className="text-background/80 mt-2">
+                  Sign up for our newsletter and enjoy exclusive discounts
+                </p>
               </div>
               <Link to="/signup">
                 <Button variant="amber" size="lg">
