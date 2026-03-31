@@ -55,7 +55,7 @@ export const Footer = () => {
 
               {/* 🔥 Added line */}
               <p className="text-sm text-primary font-medium mb-4">
-                We deal with premium manufacturers only.
+                We deal with premium and trusted manufacturers only.
               </p>
 
               <div className="flex gap-3">
@@ -101,22 +101,22 @@ export const Footer = () => {
 
               <ul className="space-y-4 text-sm">
 
-                {/* Location 1 */}
-                <li className="flex items-start gap-3">
-                  <MapPin className="h-4 w-4 text-primary mt-1" />
-                  <span className="text-muted-foreground">
-                    WorkFlo Bizness Square, 4th Floor, H No 1-98/3/5/23 to 27,  
-                    Jubilee Enclave, Madhapur, RR District, Telangana – 500081
-                  </span>
-                </li>
+               {/* Location 1 */}
+<li className="flex items-start gap-3">
+  <MapPin className="h-4 w-4 text-primary mt-1" />
+  <span className="text-white">
+    WorkFlo Bizness Square, 4th Floor, H No 1-98/3/5/23 to 27,  
+    Jubilee Enclave, Madhapur, RR District, Telangana – 500081
+  </span>
+</li>
 
-                {/* Location 2 */}
-                <li className="flex items-start gap-3">
-                  <MapPin className="h-4 w-4 text-primary mt-1" />
-                  <span className="text-muted-foreground">
-                    Uppal, Hyderabad, Telangana – 500039
-                  </span>
-                </li>
+{/* Location 2 */}
+<li className="flex items-start gap-3">
+  <MapPin className="h-4 w-4 text-primary mt-1" />
+  <span className="text-white">
+    Uppal, Hyderabad, Telangana – 500039
+  </span>
+</li>
 
                 <li className="flex items-center gap-3">
                   <Phone className="h-4 w-4 text-primary" />

@@ -1,10 +1,12 @@
 import { Link } from "react-router-dom";
-import { Star, Heart, ShoppingCart } from "lucide-react";
+import { Star, Heart, ShoppingCart, Loader2 } from "lucide-react";
 import { Product } from "@/types";
 import { formatPrice } from "@/data/products";
 import { useCart } from "@/context/CartContext";
+import { useWishlist } from "@/context/WishlistContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useState } from "react";
 
 interface ProductCardProps {
   product: Product;
@@ -12,9 +14,34 @@ interface ProductCardProps {
 
 export const ProductCard = ({ product }: ProductCardProps) => {
   const { addToCart } = useCart();
+  const { addToWishlist, removeFromWishlist, isInWishlist, loading: wishlistLoading } = useWishlist();
+  const [isToggling, setIsToggling] = useState(false);
+  
   const discount = product.originalPrice
     ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
     : 0;
+
+  const isWishlisted = isInWishlist(product._id);
+  const isLoading = wishlistLoading || isToggling;
+
+  const handleWishlistToggle = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isLoading) return; // prevent double clicks
+
+    setIsToggling(true);
+    try {
+      if (isWishlisted) {
+        await removeFromWishlist(product._id);
+      } else {
+        await addToWishlist(product);
+      }
+    } catch (err) {
+      // Optionally show a toast notification
+      console.error("Wishlist operation failed:", err);
+    } finally {
+      setIsToggling(false);
+    }
+  };
 
   return (
     <div className="group bg-card rounded-2xl overflow-hidden shadow-soft hover:shadow-strong transition-all duration-300 hover:-translate-y-1">
@@ -48,8 +75,18 @@ export const ProductCard = ({ product }: ProductCardProps) => {
         </div>
 
         {/* Wishlist button */}
-        <button className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 hover:bg-primary hover:text-primary-foreground">
-          <Heart className="h-4 w-4" />
+        <button
+          onClick={handleWishlistToggle}
+          disabled={isLoading}
+          className={`absolute top-3 right-3 w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center transition-all duration-300 hover:bg-primary hover:text-primary-foreground ${
+            isWishlisted ? "opacity-100 text-primary" : "opacity-0 group-hover:opacity-100"
+          } ${isLoading ? "cursor-not-allowed opacity-50" : ""}`}
+        >
+          {isLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Heart className={`h-4 w-4 ${isWishlisted ? "fill-current" : ""}`} />
+          )}
         </button>
 
         {/* Quick add to cart */}
@@ -69,7 +106,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
 
       {/* Content */}
       <div className="p-4">
-        <Link to={`/product/${product.id}`}>
+        <Link to={`/product/${product._id}`}>
           <h3 className="font-semibold text-foreground hover:text-primary transition-colors line-clamp-1">
             {product.name}
           </h3>

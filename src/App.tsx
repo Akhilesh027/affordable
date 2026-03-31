@@ -17,6 +17,8 @@ import Profile from "./pages/Profile";
 import Orders from "./pages/Orders";
 import NotFound from "./pages/NotFound";
 import OrderSuccess from "./pages/OrderSuccess";
+import { WishlistProvider } from "./context/WishlistContext";
+import Wishlist from "./pages/Wishlist";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +34,7 @@ const ScrollToTop = () => {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
+    <WishlistProvider>
     <AuthProvider>
       <CartProvider>
         <TooltipProvider>
@@ -55,12 +58,15 @@ const App = () => (
               <Route path="/signup" element={<Signup />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/orders" element={<Orders />} />
+              <Route path="/wishlist" element={<Wishlist />} />
+
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
         </TooltipProvider>
       </CartProvider>
     </AuthProvider>
+    </WishlistProvider>
   </QueryClientProvider>
 );
 

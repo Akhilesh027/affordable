@@ -3,20 +3,20 @@ import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { formatPrice } from "@/data/products";
 import { useCart } from "@/context/CartContext";
+import { useWishlist } from "@/context/WishlistContext";
 import { useEffect, useMemo, useState } from "react";
 import {
   Heart,
   Share2,
-  Truck,
-  Shield,
-  RefreshCw,
   Minus,
   Plus,
   ShoppingCart,
   Check,
+  Loader2,
 } from "lucide-react";
 import { ProductCard } from "@/components/products/ProductCard";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 
 const API_BASE = "https://api.jsgallor.com/api/affordable";
 
@@ -41,7 +41,7 @@ type ApiProduct = {
   category: string;
   description?: string;
   price: number;               // original price
-  discount?: number;           // NEW: discount percentage (0‑100)
+  discount?: number;           // discount percentage (0‑100)
   originalPrice?: number;      // optional legacy field
   quantity?: number;
   availability?: string;
@@ -145,6 +145,12 @@ const ProductDetails = () => {
   const { productId } = useParams();
   const navigate = useNavigate();
   const { addToCart } = useCart();
+  const {
+    addToWishlist,
+    removeFromWishlist,
+    isInWishlist,
+    loading: wishlistLoading,
+  } = useWishlist();
 
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
@@ -156,6 +162,7 @@ const ProductDetails = () => {
   const [relatedProducts, setRelatedProducts] = useState<UiProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [isTogglingWishlist, setIsTogglingWishlist] = useState(false);
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -183,7 +190,6 @@ const ProductDetails = () => {
         } else {
           if (uiProduct.colors.length > 0) setSelectedColor(uiProduct.colors[0]);
           if (uiProduct.sizes.length > 0) setSelectedSize(uiProduct.sizes[0]);
-          // For fabrics, if any, also auto-select first
           if (uiProduct.fabrics.length > 0) setSelectedFabric(uiProduct.fabrics[0]);
         }
       } catch (e: any) {
@@ -320,6 +326,58 @@ const ProductDetails = () => {
     );
   };
 
+  const isWishlisted = product ? isInWishlist(product._id) : false;
+  const isWishlistLoading = wishlistLoading || isTogglingWishlist;
+
+  const handleWishlistToggle = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!product || isWishlistLoading) return;
+
+    setIsTogglingWishlist(true);
+    try {
+      if (isWishlisted) {
+        await removeFromWishlist(product._id);
+      } else {
+        // Convert UiProduct to the shape expected by wishlist (Product type)
+        // Assuming product already matches Product interface (has _id, name, image, price, etc.)
+        await addToWishlist(product as any);
+      }
+    } catch (err) {
+      console.error("Wishlist toggle failed:", err);
+      // Optionally show a toast notification
+    } finally {
+      setIsTogglingWishlist(false);
+    }
+  };
+
+  const handleShare = async () => {
+    const url = window.location.href;
+    const title = product?.name || "Check out this product";
+    const text = product?.description || "Amazing product from JSGALLOR";
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title,
+          text,
+          url,
+        });
+      } catch (err) {
+        if (err instanceof Error && err.name !== "AbortError") {
+          toast.error("Sharing failed", { description: err.message });
+        }
+      }
+    } else {
+      // Fallback: copy to clipboard
+      try {
+        await navigator.clipboard.writeText(url);
+        toast.success("Link copied to clipboard!");
+      } catch (err) {
+        toast.error("Failed to copy link");
+      }
+    }
+  };
+
   if (loading) {
     return (
       <Layout>
@@ -372,7 +430,7 @@ const ProductDetails = () => {
                   onClick={() => setSelectedImage(index)}
                   className={`shrink-0 w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden border-2 transition-all ${
                     selectedImage === index
-                      ? "border-primary shadow-glow"
+                      ? "border-primary"
                       : "border-border hover:border-primary/50"
                   }`}
                 >
@@ -544,32 +602,33 @@ const ProductDetails = () => {
               </Button>
 
               <div className="grid grid-cols-2 sm:flex gap-3">
-                <Button variant="outline" size="lg" className="w-full sm:w-auto">
-                  <Heart className="h-5 w-5" />
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="w-full sm:w-auto"
+                  onClick={handleWishlistToggle}
+                  disabled={isWishlistLoading}
+                >
+                  {isWishlistLoading ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <Heart
+                      className={`h-5 w-5 ${
+                        isWishlisted ? "fill-current text-primary" : ""
+                      }`}
+                    />
+                  )}
                 </Button>
-                <Button variant="outline" size="lg" className="w-full sm:w-auto">
+
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="w-full sm:w-auto"
+                  onClick={handleShare}
+                >
                   <Share2 className="h-5 w-5" />
                 </Button>
               </div>
-            </div>
-
-            {/* Features */}
-            <div className="grid grid-cols-1 min-[420px]:grid-cols-3 gap-4 pt-6 border-t border-border">
-              {[
-                { icon: Truck, label: "Free Delivery" },
-                { icon: Shield, label: "2 Year Warranty" },
-                { icon: RefreshCw, label: "Easy Returns" },
-              ].map((feature, index) => (
-                <div
-                  key={index}
-                  className="text-center rounded-xl bg-muted/30 p-3 sm:p-0 sm:bg-transparent"
-                >
-                  <div className="w-10 h-10 mx-auto rounded-xl bg-primary/10 flex items-center justify-center mb-2">
-                    <feature.icon className="h-5 w-5 text-primary" />
-                  </div>
-                  <span className="text-xs sm:text-sm text-muted-foreground">{feature.label}</span>
-                </div>
-              ))}
             </div>
           </div>
         </div>
@@ -586,7 +645,7 @@ const ProductDetails = () => {
                   ["Available Sizes", product.sizes?.join(", ") || "—"],
                   ["Available Colors", product.colors?.length ? `${product.colors.length} color(s)` : "—"],
                   ["Available Fabrics", product.fabrics?.join(", ") || "—"],
-                  ["Extra Pillows", product.extraPillows ? `${product.extraPillows} included` : "—"],
+                  // Extra pillows removed from here
                   ["Weight", product.weight || "—"],
                   ["Availability", product.inStock ? "In Stock" : "Out of Stock"],
                 ].map(([label, value], index) => (

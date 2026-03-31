@@ -23,6 +23,7 @@ type BackendProduct = {
   rating?: number;
   reviews?: number;
   tags?: string[];
+  createdAt?: string;
 };
 
 type BackendCategory = {
@@ -30,7 +31,11 @@ type BackendCategory = {
   id?: string;
   name: string;
   slug?: string;
-  image?: string;
+  imageUrl?: string; // ✅ Fixed: changed from imageurl to imageUrl
+  imageurl?: string; // Keep for backward compatibility
+  description?: string;
+  status?: string;
+  productCount?: number;
 };
 
 type UiCategory = {
@@ -63,6 +68,7 @@ const fallbackCategoryImage = (slug: string) => {
     office: "https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=600&h=600&fit=crop",
     storage: "https://images.unsplash.com/photo-1582582429416-3d6a8c02b1f0?w=600&h=600&fit=crop",
     decor: "https://images.unsplash.com/photo-1519710164239-da123dc03ef4?w=600&h=600&fit=crop",
+    furniture: "https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?w=600&h=600&fit=crop",
   };
   return map[slug] || "https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?w=600&h=600&fit=crop";
 };
@@ -124,7 +130,9 @@ const Index = () => {
         let catsFromBackend: BackendCategory[] = [];
         try {
           catsFromBackend = await fetchCategories();
-        } catch {
+          console.log("Categories from backend:", catsFromBackend); // Debug log
+        } catch (error) {
+          console.error("Failed to fetch categories:", error);
           catsFromBackend = [];
         }
 
@@ -138,16 +146,22 @@ const Index = () => {
 
         if (catsFromBackend.length > 0) {
           uiCats = catsFromBackend.map((c) => {
+            // Get the slug from various possible fields
             const slug = (c.slug || c.id || c._id || c.name || "").toString().toLowerCase();
             const id = slug || (c.name || "other").toLowerCase().replace(/\s+/g, "-");
+            
+            // ✅ Get image URL - check both imageUrl and imageurl fields
+            const imageUrl = c.imageUrl || c.imageurl || fallbackCategoryImage(id);
+            
             return {
               id,
               name: c.name || normalizeCategoryName(id),
-              image: c.image || fallbackCategoryImage(id),
-              count: countMap[id] || 0,
+              image: imageUrl,
+              count: c.productCount || countMap[id] || 0,
             };
           });
 
+          // Add categories that have products but aren't in the backend list
           Object.keys(countMap).forEach((slug) => {
             if (!uiCats.find((x) => x.id === slug)) {
               uiCats.push({
@@ -170,6 +184,7 @@ const Index = () => {
         uiCats = uiCats.filter((c) => c.count > 0).sort((a, b) => b.count - a.count);
         setCategories(uiCats.slice(0, 6));
       } catch (e: any) {
+        console.error("Load error:", e);
         toast.error(e?.message || "Failed to load home data");
       } finally {
         setLoading(false);
@@ -179,14 +194,21 @@ const Index = () => {
     load();
   }, []);
 
-  // ✅ Find a product from the sofa category
-  const sofaProductRaw = useMemo(
-    () => productsRaw.find((p) => p.category?.toLowerCase().includes("sofa")),
-    [productsRaw]
-  );
+  const latestProduct = useMemo(() => {
+    if (productsRaw.length === 0) return null;
+    const sorted = [...productsRaw].sort((a, b) => {
+      const getTime = (p: BackendProduct) => {
+        if (p.createdAt) return new Date(p.createdAt).getTime();
+        const hexTimestamp = p._id.substring(0, 8);
+        const timestamp = parseInt(hexTimestamp, 16) * 1000;
+        return isNaN(timestamp) ? 0 : timestamp;
+      };
+      return getTime(b) - getTime(a);
+    });
+    return sorted[0];
+  }, [productsRaw]);
 
-  // ✅ Map it to UI format (if exists)
-  const sofaProductUi = sofaProductRaw ? mapProduct(sofaProductRaw) : null;
+  const latestProductUi = latestProduct ? mapProduct(latestProduct) : null;
 
   const products = useMemo(() => productsRaw.map(mapProduct), [productsRaw]);
 
@@ -241,24 +263,28 @@ const Index = () => {
 
             <div className="relative animate-fade-up" style={{ animationDelay: "0.2s" }}>
               <div className="relative rounded-3xl overflow-hidden shadow-strong">
-                {/* Dynamic image: sofa product or fallback */}
                 <img
                   src={
-                    sofaProductUi?.image ||
+                    latestProductUi?.image ||
                     "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800&h=600&fit=crop"
                   }
-                  alt={sofaProductUi?.name || "Premium Sofa"}
+                  alt={latestProductUi?.name || "Premium Furniture"}
                   className="w-full h-[400px] md:h-[500px] object-cover"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
 
                 <div className="absolute bottom-6 left-6 bg-white/90 backdrop-blur-sm rounded-2xl p-4 shadow-lg animate-float">
-                  <p className="text-sm text-muted-foreground">
-                    {sofaProductUi ? "Now only" : "Starting from"}
-                  </p>
-                  <p className="text-2xl font-bold text-foreground">
-                    {sofaProductUi ? `₹${sofaProductUi.price.toLocaleString()}` : "₹12,999"}
-                  </p>
+                  {latestProductUi ? (
+                    <>
+                      <p className="text-sm text-muted-foreground">Now only</p>
+                      <p className="text-2xl font-bold text-foreground">₹{latestProductUi.price.toLocaleString()}</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm text-muted-foreground">Starting from</p>
+                      <p className="text-2xl font-bold text-foreground">₹12,999</p>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -276,7 +302,7 @@ const Index = () => {
             {[
               { icon: Truck, title: "Free Delivery", desc: "On all orders" },
               { icon: Shield, title: "5 Year Warranty", desc: "On all products" },
-  { icon: RefreshCw, title: "Only Replacement", desc: "Replacement available for damaged items" },
+              { icon: RefreshCw, title: "Only Replacement", desc: "Replacement available for damaged items" },
               { icon: Headphones, title: "24/7 Support", desc: "Dedicated support" },
             ].map((feature, index) => (
               <div
@@ -304,6 +330,10 @@ const Index = () => {
 
           {loading ? (
             <div className="text-center text-muted-foreground py-10">Loading categories...</div>
+          ) : categories.length === 0 ? (
+            <div className="text-center text-muted-foreground py-10">
+              No categories available
+            </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
               {categories.map((category, index) => (
@@ -317,6 +347,11 @@ const Index = () => {
                     src={category.image}
                     alt={category.name}
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                    onError={(e) => {
+                      // Fallback if image fails to load
+                      const target = e.target as HTMLImageElement;
+                      target.src = fallbackCategoryImage(category.id);
+                    }}
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
                   <div className="absolute bottom-0 left-0 right-0 p-4">

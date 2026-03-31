@@ -39,6 +39,31 @@ const fallbackCategories = [
 
 const norm = (s?: string) => String(s || "").trim().toLowerCase();
 
+// Helper component for avatar with fallback
+const UserAvatar = ({ user }: { user: any }) => {
+  const [imgError, setImgError] = useState(false);
+
+  // Try multiple possible avatar fields
+  const avatarUrl = user?.avatar || user?.profilePicture || user?.image || user?.photo;
+
+  if (!avatarUrl || imgError) {
+    return (
+      <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
+        <User className="w-5 h-5 text-gray-500" />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={avatarUrl}
+      alt="User avatar"
+      className="w-8 h-8 rounded-full object-cover"
+      onError={() => setImgError(true)}
+    />
+  );
+};
+
 export const Navbar = () => {
   const { totalItems } = useCart();
   const { user, isAuthenticated, logout } = useAuth();
@@ -122,7 +147,7 @@ export const Navbar = () => {
 
             {/* Logo */}
             <Link to="/" className="flex items-center gap-3 group">
-              <div className="w-10 h-10 rounded-xl bg-black flex items-center justify-center shadow-md group-hover:shadow-glow transition-all duration-300 group-hover:rotate-[360deg]">
+              <div className="w-10 h-10 rounded-xl bg-[#4d602c] flex items-center justify-center shadow-md group-hover:shadow-glow transition-all duration-300 group-hover:rotate-[360deg]">
                 <img src={logo} alt="JSGALLOR Logo" className="w-8 h-8 object-contain" />
               </div>
               <div className="hidden sm:block">
@@ -152,23 +177,33 @@ export const Navbar = () => {
 
               {/* 🔥 Segment Buttons */}
               <div className="hidden md:flex items-center gap-2 mr-2">
-                <Link to="https://signaturespaces.jsgallor.com">
+                <a
+                  href="https://signaturespaces.jsgallor.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   <Button variant="outline" size="sm" className="rounded-full px-4">
                     Signature Spaces
                   </Button>
-                </Link>
+                </a>
 
-                <Link to="https://celestialiving.jsgallor.com">
+                <a
+                  href="https://celestialiving.jsgallor.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   <Button size="sm" className="rounded-full px-4">
                     Celestia Living
                   </Button>
-                </Link>
+                </a>
               </div>
 
               {/* Wishlist */}
-              <Button variant="ghost" size="icon" className="hidden sm:flex">
-                <Heart className="h-5 w-5" />
-              </Button>
+              <Link to="/wishlist">
+                <Button variant="ghost" size="icon" className="hidden sm:flex">
+                  <Heart className="h-5 w-5" />
+                </Button>
+              </Link>
 
               {/* Cart */}
               <Link to="/checkout">
@@ -187,11 +222,7 @@ export const Navbar = () => {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon">
-                      {user?.avatar ? (
-                        <img src={user.avatar} className="w-8 h-8 rounded-full" />
-                      ) : (
-                        <User />
-                      )}
+                      <UserAvatar user={user} />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
@@ -220,7 +251,15 @@ export const Navbar = () => {
       <nav className="hidden md:block bg-white border-b border-border/30">
         <div className="container mx-auto px-4 flex justify-center">
           {navCats.map((cat) => (
-            <Link key={cat.path} to={cat.path} className="px-4 py-3 text-sm">
+            <Link
+              key={cat.path}
+              to={cat.path}
+              className={`px-4 py-3 text-sm transition-colors ${
+                isCatActive(cat.path)
+                  ? "text-primary font-semibold border-b-2 border-primary"
+                  : "text-foreground/80 hover:text-primary"
+              }`}
+            >
               {cat.name}
             </Link>
           ))}
@@ -233,24 +272,34 @@ export const Navbar = () => {
 
           {/* Mobile Buttons */}
           <div className="flex gap-2">
-            <Link to="https://signaturespaces.jsgallor.com" className="w-1/2">
+            <a
+              href="https://signaturespaces.jsgallor.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-1/2"
+            >
               <Button variant="outline" className="w-full rounded-full">
                 Signature Spaces
               </Button>
-            </Link>
+            </a>
 
-            <Link to="https://celestialiving.jsgallor.com" className="w-1/2">
+            <a
+              href="https://celestialiving.jsgallor.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-1/2"
+            >
               <Button className="w-full rounded-full">
                 Celestia Living
               </Button>
-            </Link>
+            </a>
           </div>
 
           {/* Categories */}
           <div className="grid grid-cols-2 gap-2">
             {navCats.map((cat) => (
               <Link key={cat.path} to={cat.path}>
-                <div className="p-2 bg-muted text-center rounded">
+                <div className="p-2 bg-muted text-center rounded hover:bg-muted/80">
                   {cat.name}
                 </div>
               </Link>

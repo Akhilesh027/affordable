@@ -30,7 +30,7 @@ import { toast } from "sonner";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "https://api.jsgallor.com";
 const WEBSITE = "affordable";
-const FIRST_ORDER_COUPON_CODE = "FIRST10"; // coupon code for first-order discount
+const FIRST_ORDER_COUPON_CODE = "FIRST10";
 
 type AddressForm = {
   fullName: string;
@@ -134,11 +134,9 @@ declare global {
 const loadRazorpayScript = () =>
   new Promise<boolean>((resolve) => {
     if (window.Razorpay) return resolve(true);
-
     const id = "razorpay-checkout-js";
     const existing = document.getElementById(id);
     if (existing) return resolve(true);
-
     const script = document.createElement("script");
     script.id = id;
     script.src = "https://checkout.razorpay.com/v1/checkout.js";
@@ -159,7 +157,6 @@ const emptyAddress: AddressForm = {
   landmark: "",
 };
 
-// Helper to get color name from hex (if needed)
 const getColorName = (hex: string) => {
   const colors: Record<string, string> = {
     "#8B7355": "Brown",
@@ -175,6 +172,10 @@ const getColorName = (hex: string) => {
 const Checkout = () => {
   const navigate = useNavigate();
   const { items, updateQuantity, removeFromCart, subtotal, clearCart } = useCart();
+
+  // ---------- Local loading states for cart operations ----------
+  const [updatingItemId, setUpdatingItemId] = useState<string | null>(null);
+  const [removingItemId, setRemovingItemId] = useState<string | null>(null);
 
   // First-order detection
   const [isFirstOrder, setIsFirstOrder] = useState(false);
@@ -193,7 +194,6 @@ const Checkout = () => {
   const [step, setStep] = useState<1 | 2 | 3>(1);
 
   const [address, setAddress] = useState<AddressForm>(emptyAddress);
-
   const [addresses, setAddresses] = useState<SavedAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string>("");
   const [showAddAddress, setShowAddAddress] = useState(false);
@@ -203,7 +203,6 @@ const Checkout = () => {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cod");
   const [placingOrder, setPlacingOrder] = useState(false);
 
-  // shipping states
   const [shippingCost, setShippingCost] = useState(0);
   const [shippingLoading, setShippingLoading] = useState(false);
   const [shippingMeta, setShippingMeta] = useState<{
@@ -340,7 +339,6 @@ const Checkout = () => {
       "state",
       "pincode",
     ];
-
     for (const f of required) {
       if (!String(a[f] || "").trim()) return false;
     }
@@ -411,20 +409,16 @@ const Checkout = () => {
 
     try {
       setShippingLoading(true);
-
       const qs = new URLSearchParams({
         website: WEBSITE,
         city,
       });
-
       if (pincode) qs.set("pincode", pincode);
 
       const res = await fetch(`${API_BASE}/api/shipping-costs/by-location?${qs.toString()}`);
       const data: ShippingLookupResponse = await res.json();
 
-      if (!res.ok) {
-        throw new Error(data?.message || "Failed to fetch shipping cost");
-      }
+      if (!res.ok) throw new Error(data?.message || "Failed to fetch shipping cost");
 
       if (data?.data) {
         setShippingCost(Number(data.data.amount || 0));
@@ -471,7 +465,6 @@ const Checkout = () => {
       });
       return;
     }
-
     fetchShippingCost({
       city: resolvedAddressForShipping.city,
       pincode: resolvedAddressForShipping.pincode,
@@ -489,7 +482,6 @@ const Checkout = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subtotal, shippingCost, items.length, items]);
 
-  // Fetch user profile to determine if first order
   useEffect(() => {
     const fetchUserProfile = async () => {
       const { token, userId } = getAuth();
@@ -501,7 +493,6 @@ const Checkout = () => {
         });
         if (res.ok) {
           const data = await res.json();
-          // Assuming the API returns totalOrders
           const totalOrders = data?.totalOrders || 0;
           setIsFirstOrder(totalOrders === 0);
         }
@@ -514,7 +505,6 @@ const Checkout = () => {
     fetchUserProfile();
   }, []);
 
-  // Auto-apply first-order coupon if eligible
   useEffect(() => {
     const applyFirstOrderCoupon = async () => {
       if (
@@ -525,7 +515,6 @@ const Checkout = () => {
         items.length > 0
       ) {
         hasAppliedFirstOrder.current = true;
-        // Silent apply (no success toast)
         await applyCouponByCode(FIRST_ORDER_COUPON_CODE, true);
       }
     };
@@ -535,7 +524,6 @@ const Checkout = () => {
   const fetchEligibleCoupons = async () => {
     try {
       setLoadingEligibleCoupons(true);
-
       const res = await fetch(
         `${API_BASE}/api/${WEBSITE}/coupons/eligible?subtotal=${subtotal}&shipping=${shippingCost}`,
         {
@@ -545,7 +533,6 @@ const Checkout = () => {
       );
 
       const data = await res.json().catch(() => ({}));
-
       if (!res.ok) {
         setEligibleCoupons([]);
         return;
@@ -578,7 +565,6 @@ const Checkout = () => {
 
     try {
       setApplyingCoupon(true);
-
       const res = await fetch(`${API_BASE}/api/${WEBSITE}/coupons/apply`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -676,7 +662,32 @@ const Checkout = () => {
     toast.error("Please select an address or add a new one");
   };
 
-  // UPDATED buildOrderPayload – includes variantId and attributes
+  // ---------- UPDATED CART OPERATIONS WITH LOADING STATES ----------
+ const handleUpdateQuantity = async (itemId: string, newQuantity: number) => {
+  if (newQuantity < 1) return;
+  setUpdatingItemId(itemId);
+  try {
+    await updateQuantity(itemId, newQuantity);  // ✅ Correct
+  } catch (error) {
+    console.error("Failed to update quantity", error);
+    toast.error("Failed to update quantity");
+  } finally {
+    setUpdatingItemId(null);
+  }
+};
+
+const handleRemoveItem = async (itemId: string) => {
+  setRemovingItemId(itemId);
+  try {
+    await removeFromCart(itemId);  // ✅ Correct
+  } catch (error) {
+    console.error("Failed to remove item", error);
+    toast.error("Failed to remove item");
+  } finally {
+    setRemovingItemId(null);
+  }
+};
+
   const buildOrderPayload = (args?: {
     addressIdOverride?: string;
     payment?: any;
@@ -698,11 +709,11 @@ const Checkout = () => {
 
       return {
         productId: it.productId,
-        variantId: it.variantId || null,                     // include variantId
+        variantId: it.variantId || null,
         quantity: Number(it.quantity || 1),
         price,
         finalPrice,
-        attributes: {                                          // include attributes
+        attributes: {
           size: it.attributes?.size || null,
           color: it.attributes?.color || null,
           fabric: it.attributes?.fabric || null,
@@ -1075,7 +1086,9 @@ const Checkout = () => {
                 </div>
 
                 {items.map((item: any) => {
-                  const itemId = item._id;
+                  const cartItemId = item._id;       // Unique cart item ID (for React key)
+                  const productId = item.productId;   // Product ID for API calls
+
                   const snap = item.productSnapshot || {};
                   const name = snap.name || "Product";
                   const price = Number(
@@ -1093,9 +1106,12 @@ const Checkout = () => {
                   const selectedSize = attributes.size;
                   const selectedFabric = attributes.fabric;
 
+                  const isUpdating = updatingItemId === cartItemId;
+                  const isRemoving = removingItemId === cartItemId;
+
                   return (
                     <div
-                      key={itemId}
+                      key={cartItemId}
                       className="p-4 bg-card rounded-2xl border border-border"
                     >
                       <div className="flex flex-col md:grid md:grid-cols-12 gap-4 md:items-center">
@@ -1160,29 +1176,44 @@ const Checkout = () => {
                           <div className="flex items-center gap-2">
                             <div className="flex items-center border border-border rounded-xl">
                               <button
-                                onClick={() => updateQuantity(itemId, item.quantity - 1)}
-                                className="p-2 hover:bg-muted transition-colors rounded-l-xl"
-                                disabled={item.quantity <= 1}
+                               onClick={() => handleUpdateQuantity(cartItemId, item.quantity - 1)}
+                                className="p-2 hover:bg-muted transition-colors rounded-l-xl disabled:opacity-50"
+                                disabled={isUpdating || item.quantity <= 1}
                               >
-                                <Minus className="h-4 w-4" />
+                                {isUpdating ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Minus className="h-4 w-4" />
+                                )}
                               </button>
                               <span className="w-10 text-center font-medium">
                                 {item.quantity}
                               </span>
                               <button
-                                onClick={() => updateQuantity(itemId, item.quantity + 1)}
-                                className="p-2 hover:bg-muted transition-colors rounded-r-xl"
+                                onClick={() => handleUpdateQuantity(cartItemId, item.quantity + 1)}
+
+                                className="p-2 hover:bg-muted transition-colors rounded-r-xl disabled:opacity-50"
+                                disabled={isUpdating}
                               >
-                                <Plus className="h-4 w-4" />
+                                {isUpdating ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Plus className="h-4 w-4" />
+                                )}
                               </button>
                             </div>
 
                             <button
-                              onClick={() => removeFromCart(itemId)}
-                              className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                              onClick={() => handleRemoveItem(cartItemId)}
+                              className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition-colors disabled:opacity-50"
+                              disabled={isRemoving}
                               title="Remove item"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              {isRemoving ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
                             </button>
                           </div>
                         </div>
@@ -1199,6 +1230,7 @@ const Checkout = () => {
                 })}
 
                 <div className="mt-6 space-y-4">
+                  {/* Coupon section remains unchanged */}
                   <div className="space-y-2">
                     <div className="flex flex-col sm:flex-row gap-2">
                       <div className="relative flex-1">
@@ -1333,14 +1365,18 @@ const Checkout = () => {
               </div>
             )}
 
+            {/* Step 2 (Address) and Step 3 (Payment) remain unchanged */}
+            {/* ... (unchanged code) ... */}
+
+            {/* We only need to show the changes for step 1, but for completeness, include the rest unchanged */}
             {step === 2 && (
               <div className="bg-card border border-border rounded-2xl p-4 sm:p-6 space-y-5">
+                {/* Address step content (unchanged) */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <MapPin className="h-5 w-5 text-primary" />
                     <h2 className="text-lg sm:text-xl font-bold">Delivery Address</h2>
                   </div>
-
                   <Button
                     variant="outline"
                     onClick={() => setShowAddAddress((s) => !s)}
@@ -1376,7 +1412,6 @@ const Checkout = () => {
                               <CheckCircle2 className="h-5 w-5 text-primary shrink-0" />
                             )}
                           </div>
-
                           <p className="text-sm mt-2 break-words">
                             {a.addressLine1}
                             {a.addressLine2 ? `, ${a.addressLine2}` : ""}
