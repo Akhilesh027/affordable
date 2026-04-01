@@ -90,18 +90,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
         </button>
 
         {/* Quick add to cart */}
-        <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/60 to-transparent translate-y-full group-hover:translate-y-0 transition-transform duration-300">
-          <Button
-            variant="glass"
-            size="sm"
-            className="w-full text-white border-white/30"
-            onClick={() => addToCart(product)}
-            disabled={!product.inStock}
-          >
-            <ShoppingCart className="h-4 w-4 mr-2" />
-            {product.inStock ? "Add to Cart" : "Out of Stock"}
-          </Button>
-        </div>
+       
       </div>
 
       {/* Content */}

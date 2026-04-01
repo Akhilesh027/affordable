@@ -4,14 +4,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-import { Eye, EyeOff, Mail, Lock, User } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, User, Phone } from "lucide-react";
 import { GoogleLogin } from "@react-oauth/google";
-
+import logo from '../Images/JSGALORE.png'
 const WEBSITE: "affordable" | "mid" | "luxury" = "affordable";
 
 const Signup = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -19,7 +20,6 @@ const Signup = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
-  // ✅ use context for both normal signup + google signup
   const { signup, googleLogin } = useAuth();
   const navigate = useNavigate();
 
@@ -49,14 +49,21 @@ const Signup = () => {
       return;
     }
 
+    // Phone validation (example: 10-digit Indian number)
+    const phoneRegex = /^[0-9]{10}$/;
+    if (!phoneRegex.test(phone)) {
+      toast.error("Please enter a valid 10-digit phone number");
+      return;
+    }
+
     setIsLoading(true);
     try {
-      const success = await signup(name, email, password);
+      // Pass phone number to signup (you must update AuthContext to accept it)
+      const success = await signup(name, email, phone, password);
 
       if (success) {
         toast.success("Account created successfully!");
         navigate("/");
-        // ✅ no reload needed
       } else {
         toast.error("Failed to create account. Please try again.");
       }
@@ -76,13 +83,11 @@ const Signup = () => {
 
     setIsGoogleLoading(true);
     try {
-      // ✅ context handles backend call + localStorage + token
       const ok = await googleLogin(credential);
 
       if (ok) {
         toast.success("Signed up with Google!");
         navigate("/");
-        // ✅ no reload needed
       } else {
         toast.error("Google auth failed");
       }
@@ -112,13 +117,13 @@ const Signup = () => {
         <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-strong p-8 animate-scale-in">
           {/* Logo */}
           <Link to="/" className="flex items-center justify-center gap-3 mb-8">
-            <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center shadow-glow">
-              <span className="text-primary-foreground font-bold text-xl">JS</span>
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-glow">
+              <img src={logo} alt="JSGALORE Logo" className="w-8 h-8" />
             </div>
           </Link>
 
           <h2 className="text-2xl font-bold text-foreground mb-2">Create Account</h2>
-          <p className="text-muted-foreground mb-8">Join JSGALORE Affordable Furniture</p>
+          <p className="text-muted-foreground mb-8">Join JSGALLOR Affordable Furniture</p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
@@ -151,6 +156,25 @@ const Signup = () => {
                   disabled={isAnyLoading}
                 />
               </div>
+            </div>
+
+            {/* Phone Number Field */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Phone Number</label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                <Input
+                  type="tel"
+                  placeholder="Enter 10-digit phone number"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))} // Only digits
+                  className="pl-10 h-12 rounded-xl"
+                  required
+                  disabled={isAnyLoading}
+                  maxLength={10}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">Enter a valid 10-digit phone number</p>
             </div>
 
             <div className="space-y-2">

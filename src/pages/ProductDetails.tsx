@@ -444,7 +444,7 @@ const ProductDetails = () => {
             </div>
 
             {/* Main Image */}
-            <div className="flex-1 relative rounded-2xl overflow-hidden bg-muted group">
+            <div className="flex-1 relative rounded-2xl overflow-hidden group">
               <img
                 src={displayImage}
                 alt={product.name}

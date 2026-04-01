@@ -1099,7 +1099,7 @@ const handleRemoveItem = async (itemId: string) => {
                     typeof snap.category === "string"
                       ? snap.category
                       : snap.category?.name || snap.category?.slug || "";
-                  const inStock = snap.inStock !== false;
+                  const inStock = snap.quantity !== false;
 
                   const attributes = item.attributes || {};
                   const selectedColor = attributes.color;

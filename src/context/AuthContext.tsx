@@ -8,7 +8,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
 
   login: (email: string, password: string) => Promise<boolean>;
-  signup: (name: string, email: string, password: string) => Promise<boolean>;
+  signup: (name: string, email: string, phone: string, password: string) => Promise<boolean>; // ✅ added phone
 
   // ✅ Google auth
   googleLogin: (credential: string) => Promise<boolean>;
@@ -55,7 +55,7 @@ const mapCustomerToUser = (customer: any): User => {
     totalOrders: customer?.totalOrders,
     totalSpent: customer?.totalSpent,
     createdAt: customer?.createdAt,
-    phone: customer?.phone,
+    phone: customer?.phone,      // ✅ already mapped
     address: customer?.address,
   } as User;
 };
@@ -136,13 +136,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signup = async (name: string, email: string, password: string): Promise<boolean> => {
+  // ✅ Updated signup to accept phone
+  const signup = async (name: string, email: string, phone: string, password: string): Promise<boolean> => {
     try {
       const res = await axios.post(`${AFFORDABLE_API}/signup`, {
         name,
         email,
+        phone,                    // ✅ send phone
         password,
-        platform: WEBSITE, // ✅ send platform if backend uses it
+        platform: WEBSITE,        // ✅ send platform if backend uses it
       });
 
       if (res.data?.success) {
@@ -168,24 +170,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // ✅ Google auth
-const googleLogin = async (credential: string): Promise<boolean> => {
-  const res = await axios.post(`/api/auth/google`, {
-    credential,
-    website: "affordable",
-  });
+  const googleLogin = async (credential: string): Promise<boolean> => {
+    const res = await axios.post(`/api/auth/google`, {
+      credential,
+      website: "affordable",
+    });
 
-  const token = res.data?.token;
-  const customer = res.data?.customer || res.data?.user;
+    const token = res.data?.token;
+    const customer = res.data?.customer || res.data?.user;
 
-  if (!token || !customer) throw new Error("Invalid google auth response");
+    if (!token || !customer) throw new Error("Invalid google auth response");
 
-  localStorage.setItem("affordable_token", token);
-  localStorage.setItem("affordable_user", JSON.stringify(customer));
-  axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-  setUser(mapCustomerToUser(customer));
+    localStorage.setItem("affordable_token", token);
+    localStorage.setItem("affordable_user", JSON.stringify(customer));
+    axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+    setUser(mapCustomerToUser(customer));
 
-  return true;
-};
+    return true;
+  };
 
   const logout = async (): Promise<void> => {
     try {
@@ -198,17 +200,24 @@ const googleLogin = async (credential: string): Promise<boolean> => {
     }
   };
 
-  const updateProfile = async (profileData: any): Promise<boolean> => {
+ const updateProfile = async (profileData: any): Promise<boolean> => {
     try {
       const res = await axios.put(`${AFFORDABLE_API}/profile`, profileData);
 
-      if (res.data?.success) {
-        const updatedCustomer = res.data.customer;
-        // Keep token same
+      // Try to extract customer from both possible response formats
+      const customer = res.data?.customer || res.data?.Customer;
+      
+      if (customer) {
         const token = localStorage.getItem(TOKEN_KEY);
-        setSession(token, updatedCustomer);
+        setSession(token, customer);
         return true;
       }
+      
+      // If no customer in response but success flag is true, still consider success
+      if (res.data?.success === true) {
+        return true;
+      }
+      
       return false;
     } catch (error: any) {
       console.error("Update profile error:", error);

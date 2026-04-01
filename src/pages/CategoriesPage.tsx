@@ -206,21 +206,20 @@ useEffect(() => {
         : Array.isArray(data?.products)
         ? data.products
         : [];
-
-      const mapped: Product[] = arr.map((p) => {
-        const qty = Number(p.quantity ?? 0);
-        const avail = String(p.availability ?? "").toLowerCase();
-        return {
-          _id: p._id,
-          name: p.name,
-          price: Number(p.price) || 0,
-          category: p.category,
-          subcategory: p.subcategory,
-          image: p.image,
-          inStock: avail === "in stock" && qty > 0,
-          colors: p.color ? [p.color] : [],
-        };
-      });
+const mapped: Product[] = arr.map((p) => {
+  const qty = Number(p.quantity ?? 0);
+  const avail = String(p.availability ?? "").toLowerCase();
+  return {
+    _id: p._id,
+    name: p.name,
+    price: Number(p.price) || 0,
+    category: p.category,
+    subcategory: p.subcategory,
+    image: p.image,
+    inStock: qty > 0 && avail !== "out of stock",
+    colors: p.color ? [p.color] : [],
+  };
+});
 
       setProducts(mapped);
     } catch (e: any) {

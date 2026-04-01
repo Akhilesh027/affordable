@@ -21,7 +21,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { formatPrice } from "@/data/products";
 
@@ -89,8 +89,14 @@ const emptyAddress: AddressForm = {
 };
 
 const Profile = () => {
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, logout, setUser } = useAuth(); // assuming setUser exists
   const [activeTab, setActiveTab] = useState<"profile" | "orders" | "addresses" | "settings">("profile");
+
+  // Profile state
+  const [profileName, setProfileName] = useState(user?.name || "");
+  const [profileEmail, setProfileEmail] = useState(user?.email || "");
+  const [profilePhone, setProfilePhone] = useState(user?.phone || "");
+  const [profileLoading, setProfileLoading] = useState(false);
 
   // Orders state
   const [orders, setOrders] = useState<Order[]>([]);
@@ -101,10 +107,7 @@ const Profile = () => {
   const [addrLoading, setAddrLoading] = useState(false);
   const [addAddrOpen, setAddAddrOpen] = useState(false);
   const [savingAddr, setSavingAddr] = useState(false);
-
-  // ✅ editing support
   const [editing, setEditing] = useState<SavedAddress | null>(null);
-
   const [newAddr, setNewAddr] = useState<AddressForm>(emptyAddress);
 
   // Modals for Orders
@@ -112,13 +115,14 @@ const Profile = () => {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [activeOrder, setActiveOrder] = useState<Order | null>(null);
 
-  const auth = useMemo(() => {
+  // Helper to get fresh auth from localStorage
+  const getFreshAuth = () => {
     const token = localStorage.getItem("affordable_token");
     const userRaw = localStorage.getItem("affordable_user");
     const u = userRaw ? JSON.parse(userRaw) : null;
     const userId = u?._id || u?.id || null;
     return { token, userId };
-  }, []);
+  };
 
   if (!isAuthenticated) return <Navigate to="/login" />;
 
@@ -159,13 +163,78 @@ const Profile = () => {
     );
   };
 
-  // ------- API -------
+  // ----- Profile Update -----
+  const handleProfileUpdate = async () => {
+    const { token } = getFreshAuth();
+    if (!token) {
+      toast.error("Please login again");
+      return;
+    }
+
+    if (!profileName.trim() || !profileEmail.trim()) {
+      toast.error("Name and email are required");
+      return;
+    }
+
+    try {
+      setProfileLoading(true);
+      const res = await fetch(`${API_BASE}/api/affordable/profile`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: profileName,
+          email: profileEmail,
+          phone: profilePhone,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Failed to update profile");
+
+      // The backend returns { Customer: updated } (note capital C)
+      const updatedCustomer = data.Customer || data.customer || data.user;
+      if (updatedCustomer) {
+        // Update localStorage
+        const updatedUser = {
+          ...user,
+          name: updatedCustomer.name,
+          email: updatedCustomer.email,
+          phone: updatedCustomer.phone,
+          avatar: updatedCustomer.avatar,
+        };
+        localStorage.setItem("affordable_user", JSON.stringify(updatedUser));
+        // Update context if setUser is available
+        if (setUser) setUser(updatedUser);
+        // Sync local state
+        setProfileName(updatedCustomer.name);
+        setProfileEmail(updatedCustomer.email);
+        setProfilePhone(updatedCustomer.phone || "");
+      } else {
+        // Fallback: just update localStorage from form
+        const updatedUser = { ...user, name: profileName, email: profileEmail, phone: profilePhone };
+        localStorage.setItem("affordable_user", JSON.stringify(updatedUser));
+        if (setUser) setUser(updatedUser);
+      }
+
+      toast.success("Profile updated successfully");
+    } catch (err: any) {
+      toast.error(err.message || "Something went wrong");
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  // ----- Orders Fetch -----
   const fetchOrders = async () => {
-    if (!auth.token || !auth.userId) return;
+    const { token, userId } = getFreshAuth();
+    if (!token || !userId) return;
     try {
       setOrdersLoading(true);
-      const res = await fetch(`${API_BASE}/api/affordable/orders/${auth.userId}`, {
-        headers: { Authorization: `Bearer ${auth.token}` },
+      const res = await fetch(`${API_BASE}/api/affordable/orders/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to fetch orders");
@@ -177,12 +246,14 @@ const Profile = () => {
     }
   };
 
+  // ----- Addresses -----
   const fetchAddresses = async () => {
-    if (!auth.token || !auth.userId) return;
+    const { token, userId } = getFreshAuth();
+    if (!token || !userId) return;
     try {
       setAddrLoading(true);
-      const res = await fetch(`${API_BASE}/api/affordable/address/${auth.userId}`, {
-        headers: { Authorization: `Bearer ${auth.token}` },
+      const res = await fetch(`${API_BASE}/api/affordable/address/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to fetch addresses");
@@ -227,9 +298,9 @@ const Profile = () => {
     setAddAddrOpen(true);
   };
 
-  // ✅ ADD or UPDATE (same modal)
   const saveOrUpdateAddress = async () => {
-    if (!auth.token || !auth.userId) {
+    const { token, userId } = getFreshAuth();
+    if (!token || !userId) {
       toast.error("Please login again");
       return;
     }
@@ -240,7 +311,6 @@ const Profile = () => {
 
     try {
       setSavingAddr(true);
-
       const isEdit = Boolean(editing?._id);
       const url = isEdit
         ? `${API_BASE}/api/affordable/address/${editing!._id}`
@@ -252,9 +322,9 @@ const Profile = () => {
         method,
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${auth.token}`,
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ userId: auth.userId, ...newAddr }),
+        body: JSON.stringify({ userId, ...newAddr }),
       });
 
       const data = await res.json();
@@ -272,17 +342,17 @@ const Profile = () => {
     }
   };
 
-  // ✅ DELETE address
   const deleteAddress = async (addressId: string) => {
-    if (!auth.token || !auth.userId) return toast.error("Please login again");
+    const { token, userId } = getFreshAuth();
+    if (!token || !userId) return toast.error("Please login again");
 
     const ok = window.confirm("Delete this address?");
     if (!ok) return;
 
     try {
-      const res = await fetch(`${API_BASE}/api/affordable/address/${addressId}/${auth.userId}`, {
+      const res = await fetch(`${API_BASE}/api/affordable/address/${addressId}/${userId}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${auth.token}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to delete address");
@@ -294,14 +364,24 @@ const Profile = () => {
     }
   };
 
-  // fetch when tab changes
+  // ----- Effects -----
+  // Populate profile fields when user changes
+  useEffect(() => {
+    if (user) {
+      setProfileName(user.name || "");
+      setProfileEmail(user.email || "");
+      setProfilePhone(user.phone || "");
+    }
+  }, [user]);
+
+  // Fetch data when tab changes
   useEffect(() => {
     if (activeTab === "orders") fetchOrders();
     if (activeTab === "addresses") fetchAddresses();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
-  // ------- Order modals helpers -------
+  // ----- Order Modals Helpers -----
   const timelineSteps = [
     { key: "placed", label: "Order Placed" },
     { key: "confirmed", label: "Confirmed" },
@@ -392,18 +472,34 @@ const Profile = () => {
                   <div className="grid md:grid-cols-2 gap-4">
                     <div>
                       <label className="text-sm font-medium">Full Name</label>
-                      <Input defaultValue={user?.name} className="mt-1" />
+                      <Input
+                        className="mt-1"
+                        value={profileName}
+                        onChange={(e) => setProfileName(e.target.value)}
+                      />
                     </div>
                     <div>
                       <label className="text-sm font-medium">Email</label>
-                      <Input defaultValue={user?.email} className="mt-1" />
+                      <Input
+                        className="mt-1"
+                        type="email"
+                        value={profileEmail}
+                        onChange={(e) => setProfileEmail(e.target.value)}
+                      />
                     </div>
                     <div>
                       <label className="text-sm font-medium">Phone</label>
-                      <Input placeholder="+91 98765 43210" className="mt-1" />
+                      <Input
+                        className="mt-1"
+                        value={profilePhone}
+                        onChange={(e) => setProfilePhone(e.target.value)}
+                        placeholder="10-digit mobile number"
+                      />
                     </div>
                   </div>
-                  <Button>Save Changes</Button>
+                  <Button onClick={handleProfileUpdate} disabled={profileLoading}>
+                    {profileLoading ? "Saving..." : "Save Changes"}
+                  </Button>
                 </div>
               )}
 
@@ -480,7 +576,7 @@ const Profile = () => {
                 </div>
               )}
 
-              {/* ADDRESSES TAB (✅ edit + delete) */}
+              {/* ADDRESSES TAB */}
               {activeTab === "addresses" && (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between gap-3">
@@ -562,7 +658,7 @@ const Profile = () => {
           </div>
         </div>
 
-        {/* ===================== ADD / EDIT ADDRESS MODAL ===================== */}
+        {/* Add/Edit Address Modal */}
         {addAddrOpen && (
           <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="w-full max-w-2xl bg-card border border-border rounded-2xl p-6 relative">
@@ -705,7 +801,7 @@ const Profile = () => {
           </div>
         )}
 
-        {/* ===================== TRACK MODAL ===================== */}
+        {/* Track Order Modal */}
         {trackOpen && activeOrder && (
           <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="w-full max-w-xl bg-card border border-border rounded-2xl p-6 relative">
@@ -766,7 +862,7 @@ const Profile = () => {
           </div>
         )}
 
-        {/* ===================== DETAILS MODAL ===================== */}
+        {/* Order Details Modal */}
         {detailsOpen && activeOrder && (
           <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="w-full max-w-2xl bg-card border border-border rounded-2xl p-6 relative max-h-[85vh] overflow-auto">

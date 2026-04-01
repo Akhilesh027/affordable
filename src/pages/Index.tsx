@@ -5,6 +5,8 @@ import { ProductGrid } from "@/components/products/ProductGrid";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Truck, Shield, RefreshCw, Headphones } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
+import { PhoneNumberModal } from "@/components/layout/PhoneNumberModal";
 
 const API_BASE = "https://api.jsgallor.com";
 
@@ -27,15 +29,15 @@ type BackendProduct = {
 };
 
 type BackendCategory = {
-  _id?: string;
-  id?: string;
+  id: string;
   name: string;
-  slug?: string;
-  imageUrl?: string; // ✅ Fixed: changed from imageurl to imageUrl
-  imageurl?: string; // Keep for backward compatibility
-  description?: string;
-  status?: string;
+  slug: string;
+  segment?: string;           // "all", "affordable", etc.
+  imageUrl?: string;
   productCount?: number;
+  parentId?: string | null;
+  status?: string;
+  // ... other fields
 };
 
 type UiCategory = {
@@ -58,19 +60,6 @@ type UiProduct = {
   rating: number;
   reviews: number;
   tags: string[];
-};
-
-const fallbackCategoryImage = (slug: string) => {
-  const map: Record<string, string> = {
-    "living-room": "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=600&h=600&fit=crop",
-    bedroom: "https://images.unsplash.com/photo-1616594039964-ae9021a400a0?w=600&h=600&fit=crop",
-    dining: "https://images.unsplash.com/photo-1549497538-303791108f95?w=600&h=600&fit=crop",
-    office: "https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=600&h=600&fit=crop",
-    storage: "https://images.unsplash.com/photo-1582582429416-3d6a8c02b1f0?w=600&h=600&fit=crop",
-    decor: "https://images.unsplash.com/photo-1519710164239-da123dc03ef4?w=600&h=600&fit=crop",
-    furniture: "https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?w=600&h=600&fit=crop",
-  };
-  return map[slug] || "https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?w=600&h=600&fit=crop";
 };
 
 const normalizeCategoryName = (slug: string) =>
@@ -101,9 +90,17 @@ const mapProduct = (p: BackendProduct): UiProduct => {
 };
 
 const Index = () => {
+  const { user, isAuthenticated } = useAuth();
+  const [showPhoneModal, setShowPhoneModal] = useState(false);
   const [productsRaw, setProductsRaw] = useState<BackendProduct[]>([]);
   const [categories, setCategories] = useState<UiCategory[]>([]);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (isAuthenticated && user && !user.phone && !sessionStorage.getItem("skipPhoneModal")) {
+      setShowPhoneModal(true);
+    }
+  }, [isAuthenticated, user]);
 
   const fetchProducts = async () => {
     const res = await fetch(`${API_BASE}/api/affordable/products`);
@@ -113,10 +110,13 @@ const Index = () => {
   };
 
   const fetchCategories = async () => {
-    const res = await fetch(`${API_BASE}/api/affordable/categories`);
+    const res = await fetch(`${API_BASE}/api/admin/categories`);
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error || "Failed to fetch categories");
-    return (data?.categories || data || []) as BackendCategory[];
+
+    // Extract items array from the new response structure
+    const categoriesData = data?.data?.items || data?.categories || data || [];
+    return categoriesData as BackendCategory[];
   };
 
   useEffect(() => {
@@ -130,12 +130,21 @@ const Index = () => {
         let catsFromBackend: BackendCategory[] = [];
         try {
           catsFromBackend = await fetchCategories();
-          console.log("Categories from backend:", catsFromBackend); // Debug log
+          console.log("Categories from backend:", catsFromBackend);
         } catch (error) {
           console.error("Failed to fetch categories:", error);
           catsFromBackend = [];
         }
 
+        // Filter categories: only those with segment 'all' or 'affordable' and non-empty imageUrl
+        const filteredCategories = catsFromBackend.filter(
+          (cat) =>
+            (cat.segment === "all" || cat.segment === "affordable") &&
+            cat.imageUrl &&
+            cat.imageUrl.trim() !== ""
+        );
+
+        // Build a map of product counts per category slug (from products)
         const countMap = prods.reduce<Record<string, number>>((acc, p) => {
           const key = (p.category || "other").toLowerCase();
           acc[key] = (acc[key] || 0) + 1;
@@ -144,45 +153,26 @@ const Index = () => {
 
         let uiCats: UiCategory[] = [];
 
-        if (catsFromBackend.length > 0) {
-          uiCats = catsFromBackend.map((c) => {
-            // Get the slug from various possible fields
-            const slug = (c.slug || c.id || c._id || c.name || "").toString().toLowerCase();
-            const id = slug || (c.name || "other").toLowerCase().replace(/\s+/g, "-");
-            
-            // ✅ Get image URL - check both imageUrl and imageurl fields
-            const imageUrl = c.imageUrl || c.imageurl || fallbackCategoryImage(id);
-            
+        if (filteredCategories.length > 0) {
+          uiCats = filteredCategories.map((c) => {
+            const id = c.slug || c.id; // use slug as id
             return {
               id,
               name: c.name || normalizeCategoryName(id),
-              image: imageUrl,
+              image: c.imageUrl!,
               count: c.productCount || countMap[id] || 0,
             };
           });
-
-          // Add categories that have products but aren't in the backend list
-          Object.keys(countMap).forEach((slug) => {
-            if (!uiCats.find((x) => x.id === slug)) {
-              uiCats.push({
-                id: slug,
-                name: normalizeCategoryName(slug),
-                image: fallbackCategoryImage(slug),
-                count: countMap[slug] || 0,
-              });
-            }
-          });
         } else {
-          uiCats = Object.keys(countMap).map((slug) => ({
-            id: slug,
-            name: normalizeCategoryName(slug),
-            image: fallbackCategoryImage(slug),
-            count: countMap[slug] || 0,
-          }));
+          // No suitable categories from backend – fallback to building from product categories
+          // but note: we don't have images, so we might choose to show nothing.
+          // For now, we'll show nothing (empty array).
+          uiCats = [];
         }
 
-        uiCats = uiCats.filter((c) => c.count > 0).sort((a, b) => b.count - a.count);
-        setCategories(uiCats.slice(0, 6));
+        // Sort by product count (descending) and take top 6
+        uiCats = uiCats.sort((a, b) => b.count - a.count).slice(0, 6);
+        setCategories(uiCats);
       } catch (e: any) {
         console.error("Load error:", e);
         toast.error(e?.message || "Failed to load home data");
@@ -347,11 +337,6 @@ const Index = () => {
                     src={category.image}
                     alt={category.name}
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                    onError={(e) => {
-                      // Fallback if image fails to load
-                      const target = e.target as HTMLImageElement;
-                      target.src = fallbackCategoryImage(category.id);
-                    }}
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
                   <div className="absolute bottom-0 left-0 right-0 p-4">
@@ -423,6 +408,9 @@ const Index = () => {
           </div>
         </div>
       </section>
+
+      {/* Phone Number Modal */}
+      <PhoneNumberModal open={showPhoneModal} onOpenChange={setShowPhoneModal} />
     </Layout>
   );
 };
