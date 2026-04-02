@@ -19,6 +19,7 @@ import NotFound from "./pages/NotFound";
 import OrderSuccess from "./pages/OrderSuccess";
 import { WishlistProvider } from "./context/WishlistContext";
 import Wishlist from "./pages/Wishlist";
+import ResetPassword from "./pages/resetpassword";
 
 const queryClient = new QueryClient();
 
@@ -59,7 +60,7 @@ const App = () => (
               <Route path="/profile" element={<Profile />} />
               <Route path="/orders" element={<Orders />} />
               <Route path="/wishlist" element={<Wishlist />} />
-
+<Route path="/reset-password" element={<ResetPassword />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

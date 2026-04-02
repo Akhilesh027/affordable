@@ -252,6 +252,7 @@ const Index = () => {
             </div>
 
             <div className="relative animate-fade-up" style={{ animationDelay: "0.2s" }}>
+              <Link to={`/product/${latestProduct?._id}`}>
               <div className="relative rounded-3xl overflow-hidden shadow-strong">
                 <img
                   src={
@@ -277,7 +278,7 @@ const Index = () => {
                   )}
                 </div>
               </div>
-
+</Link>
               <div className="absolute -top-4 -right-4 w-24 h-24 bg-primary/20 rounded-full blur-2xl" />
               <div className="absolute -bottom-4 -left-4 w-32 h-32 bg-primary/10 rounded-full blur-3xl" />
             </div>

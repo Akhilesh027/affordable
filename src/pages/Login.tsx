@@ -17,7 +17,11 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
-  // ✅ use context for both email/pass + google
+  // 🔥 Forgot Password States
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+
   const { login, googleLogin } = useAuth();
   const navigate = useNavigate();
 
@@ -44,13 +48,11 @@ const Login = () => {
       if (success) {
         toast.success("Welcome back!");
         navigate("/");
-        // ✅ no reload needed if context updates UI properly
       } else {
         toast.error("Invalid credentials. Please try again.");
       }
     } catch (error: any) {
-      console.error("Login error:", error);
-      toast.error(error.message || "Something went wrong. Please try again.");
+      toast.error(error.message || "Something went wrong.");
     } finally {
       setIsLoading(false);
     }
@@ -58,13 +60,12 @@ const Login = () => {
 
   const handleGoogleSuccess = async (credential?: string) => {
     if (!credential) {
-      toast.error("Google sign-in failed (no credential).");
+      toast.error("Google sign-in failed");
       return;
     }
 
     setIsGoogleLoading(true);
     try {
-      // ✅ context handles saving token/user
       const ok = await googleLogin(credential);
 
       if (ok) {
@@ -74,166 +75,156 @@ const Login = () => {
         toast.error("Google authentication failed");
       }
     } catch (err: any) {
-      console.error(err);
       toast.error(err?.message || "Google authentication failed");
     } finally {
       setIsGoogleLoading(false);
     }
   };
 
-  return (
-    <div
-      className="min-h-screen flex items-center justify-center md:justify-end p-4 md:pr-16"
-      style={{
-        background: `linear-gradient(135deg, hsl(43 100% 95%) 0%, hsl(43 100% 88%) 100%)`,
-      }}
-    >
-      {/* Decorative background */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-primary/10 rounded-full blur-3xl" />
-      </div>
+  const handleForgotPassword = async () => {
+    if (!resetEmail) {
+      toast.error("Please enter your email");
+      return;
+    }
 
+    setResetLoading(true);
+    try {
+      const res = await fetch("https://api.jsgallor.com/api/affordable/forgot-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email: resetEmail }),
+      });
+
+      const data = await res.text();
+      toast.success(data || "Reset link sent to your email");
+      setShowForgotModal(false);
+      setResetEmail("");
+    } catch (error) {
+      toast.error("Something went wrong");
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center md:justify-end p-4 md:pr-16 bg-gradient-to-br from-yellow-100 to-yellow-200">
+      
       {/* Login Card */}
       <div className="relative w-full max-w-md">
-        <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-strong p-8 animate-scale-in">
+        <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-xl p-8">
+          
           {/* Logo */}
-          <Link to="/" className="flex items-center justify-center gap-3 mb-8">
-            <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center shadow-glow">
-              <span className="text-primary-foreground font-bold text-xl">JS</span>
+          <Link to="/" className="flex justify-center mb-8">
+            <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center">
+              <span className="text-white font-bold text-xl">JS</span>
             </div>
           </Link>
 
-          <h2 className="text-2xl font-bold text-foreground mb-2">Welcome Back</h2>
-          <p className="text-muted-foreground mb-8">Sign in to continue shopping</p>
+          <h2 className="text-2xl font-bold mb-2">Welcome Back</h2>
+          <p className="text-gray-500 mb-6">Sign in to continue</p>
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="space-y-2">
+            
+            {/* Email */}
+            <div>
               <label className="text-sm font-medium">Email</label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                <Mail className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
                 <Input
                   type="email"
-                  placeholder="Enter your email"
+                  className="pl-10 h-12"
+                  placeholder="Enter email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10 h-12 rounded-xl"
-                  required
-                  disabled={isAnyLoading}
                 />
               </div>
             </div>
 
-            <div className="space-y-2">
+            {/* Password */}
+            <div>
               <label className="text-sm font-medium">Password</label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                <Lock className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
                 <Input
                   type={showPassword ? "text" : "password"}
-                  placeholder="Enter your password"
+                  className="pl-10 pr-10 h-12"
+                  placeholder="Enter password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10 pr-10 h-12 rounded-xl"
-                  required
-                  disabled={isAnyLoading}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  disabled={isAnyLoading}
+                  className="absolute right-3 top-3"
                 >
-                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  {showPassword ? <EyeOff /> : <Eye />}
                 </button>
               </div>
             </div>
 
-            <div className="flex items-center justify-between text-sm">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="rounded border-border accent-primary"
-                  disabled={isAnyLoading}
-                />
-                <span>Remember me</span>
-              </label>
-              <Link to="/forgot-password" className="text-primary hover:underline">
+            {/* Forgot Password */}
+            <div className="flex justify-end text-sm">
+              <button
+                type="button"
+                onClick={() => setShowForgotModal(true)}
+                className="text-primary hover:underline"
+              >
                 Forgot password?
-              </Link>
+              </button>
             </div>
 
-            <Button type="submit" variant="hero" size="lg" className="w-full" disabled={isAnyLoading}>
-              {isLoading ? (
-                <span className="flex items-center justify-center">
-                  <svg
-                    className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                  Signing in...
-                </span>
-              ) : (
-                "Sign In"
-              )}
+            {/* Submit */}
+            <Button className="w-full" disabled={isAnyLoading}>
+              {isLoading ? "Signing in..." : "Sign In"}
             </Button>
           </form>
 
+          {/* Google */}
           <div className="mt-6 text-center">
-            <p className="text-muted-foreground">
-              Don&apos;t have an account?{" "}
-              <Link to="/signup" className="text-primary font-medium hover:underline">
-                Sign up
-              </Link>
-            </p>
+            <GoogleLogin
+              onSuccess={(res) => handleGoogleSuccess(res.credential)}
+              onError={() => toast.error("Google failed")}
+            />
           </div>
-
-          {/* Social login */}
-          <div className="mt-8">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-border" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white/80 px-2 text-muted-foreground">Or continue with</span>
-              </div>
-            </div>
-
-            <div className="mt-4">
-              <div className={`flex justify-center ${isGoogleLoading ? "opacity-60 pointer-events-none" : ""}`}>
-                <GoogleLogin
-                  onSuccess={(resp) => handleGoogleSuccess(resp.credential)}
-                  onError={() => toast.error("Google sign-in failed")}
-                  useOneTap
-                />
-              </div>
-
-              {isGoogleLoading && (
-                <p className="mt-3 text-xs text-muted-foreground text-center">
-                  Signing in with Google...
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* kept for future if you want to show platform */}
-          <p className="sr-only">website: {WEBSITE}</p>
         </div>
       </div>
+
+      {/* 🔥 Forgot Password Modal */}
+      {showForgotModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-2xl w-[350px] shadow-xl">
+
+            <h3 className="text-xl font-semibold mb-2">Reset Password</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Enter your email to receive a reset link
+            </p>
+
+            <Input
+              type="email"
+              placeholder="Enter your email"
+              value={resetEmail}
+              onChange={(e) => setResetEmail(e.target.value)}
+              className="mb-4"
+            />
+
+            <button
+              onClick={handleForgotPassword}
+              className="w-full bg-primary text-white py-2 rounded-lg"
+            >
+              {resetLoading ? "Sending..." : "Send Reset Link"}
+            </button>
+
+            <button
+              onClick={() => setShowForgotModal(false)}
+              className="w-full mt-3 text-sm text-gray-500"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
