@@ -222,9 +222,35 @@ const Checkout = () => {
     [shippingCost, shippingDiscount]
   );
 
-  const total = useMemo(
-    () => Math.max(0, subtotal - discount + finalShipping),
-    [subtotal, discount, finalShipping]
+  const gstDetails = useMemo(() => {
+  let subtotalExclGst = 0;
+  let gstTotal = 0;
+
+  for (const item of items) {
+    const snap = item.productSnapshot || {};
+    const qty = Number(item.quantity || 1);
+
+    const finalPrice = Number(snap.finalPrice ?? snap.price ?? 0);
+    const gstPercent = Number(snap.gst ?? 0);
+
+    const itemSubtotalExclGst = finalPrice * qty;
+    const itemGst = itemSubtotalExclGst * (gstPercent / 100);
+
+    subtotalExclGst += itemSubtotalExclGst;
+    gstTotal += itemGst;
+  }
+
+  return {
+    subtotalExclGst,
+    gstTotal,
+    subtotalInclGst: subtotalExclGst + gstTotal,
+  };
+}, [items]);
+
+  // Final total after applying coupon discount (on excl GST subtotal) and shipping
+  const finalTotal = useMemo(
+    () => Math.max(0, gstDetails.subtotalInclGst - discount + finalShipping),
+    [gstDetails.subtotalInclGst, discount, finalShipping]
   );
 
   const getAuth = () => {
@@ -475,12 +501,12 @@ const Checkout = () => {
     if (!appliedCoupon?.code) return;
     reApplyCoupon();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subtotal, shippingCost, items.length, items]);
+  }, [gstDetails.subtotalExclGst, shippingCost, items.length, items]);
 
   useEffect(() => {
     fetchEligibleCoupons();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subtotal, shippingCost, items.length, items]);
+  }, [gstDetails.subtotalExclGst, shippingCost, items.length, items]);
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -525,7 +551,7 @@ const Checkout = () => {
     try {
       setLoadingEligibleCoupons(true);
       const res = await fetch(
-        `${API_BASE}/api/${WEBSITE}/coupons/eligible?subtotal=${subtotal}&shipping=${shippingCost}`,
+        `${API_BASE}/api/${WEBSITE}/coupons/eligible?subtotal=${gstDetails.subtotalExclGst}&shipping=${shippingCost}`,
         {
           method: "GET",
           headers: { "Content-Type": "application/json" },
@@ -570,7 +596,7 @@ const Checkout = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           code,
-          cartTotal: subtotal,
+          cartTotal: gstDetails.subtotalExclGst,
           shipping: shippingCost,
           userId: userId || undefined,
           items: buildCouponItemsPayload(),
@@ -614,7 +640,7 @@ const Checkout = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           code,
-          cartTotal: subtotal,
+          cartTotal: gstDetails.subtotalExclGst,
           shipping: shippingCost,
           userId: userId || undefined,
           items: buildCouponItemsPayload(),
@@ -662,31 +688,30 @@ const Checkout = () => {
     toast.error("Please select an address or add a new one");
   };
 
-  // ---------- UPDATED CART OPERATIONS WITH LOADING STATES ----------
- const handleUpdateQuantity = async (itemId: string, newQuantity: number) => {
-  if (newQuantity < 1) return;
-  setUpdatingItemId(itemId);
-  try {
-    await updateQuantity(itemId, newQuantity);  // ✅ Correct
-  } catch (error) {
-    console.error("Failed to update quantity", error);
-    toast.error("Failed to update quantity");
-  } finally {
-    setUpdatingItemId(null);
-  }
-};
+  const handleUpdateQuantity = async (itemId: string, newQuantity: number) => {
+    if (newQuantity < 1) return;
+    setUpdatingItemId(itemId);
+    try {
+      await updateQuantity(itemId, newQuantity);
+    } catch (error) {
+      console.error("Failed to update quantity", error);
+      toast.error("Failed to update quantity");
+    } finally {
+      setUpdatingItemId(null);
+    }
+  };
 
-const handleRemoveItem = async (itemId: string) => {
-  setRemovingItemId(itemId);
-  try {
-    await removeFromCart(itemId);  // ✅ Correct
-  } catch (error) {
-    console.error("Failed to remove item", error);
-    toast.error("Failed to remove item");
-  } finally {
-    setRemovingItemId(null);
-  }
-};
+  const handleRemoveItem = async (itemId: string) => {
+    setRemovingItemId(itemId);
+    try {
+      await removeFromCart(itemId);
+    } catch (error) {
+      console.error("Failed to remove item", error);
+      toast.error("Failed to remove item");
+    } finally {
+      setRemovingItemId(null);
+    }
+  };
 
   const buildOrderPayload = (args?: {
     addressIdOverride?: string;
@@ -747,11 +772,12 @@ const handleRemoveItem = async (itemId: string) => {
           }
         : undefined,
       pricing: {
-        subtotal,
+        subtotal: gstDetails.subtotalExclGst,
         discount,
         shippingCost,
         shippingDiscount,
-        total,
+        total: finalTotal,
+        gst: gstDetails.gstTotal,          // optional: store GST amount
       },
       shipping: {
         website: WEBSITE,
@@ -813,7 +839,7 @@ const handleRemoveItem = async (itemId: string) => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        amount: Number(total),
+        amount: Number(finalTotal),
         currency: "INR",
         receipt: `rcpt_${Date.now()}`,
         notes: {
@@ -874,7 +900,7 @@ const handleRemoveItem = async (itemId: string) => {
           navigate("/order-success", {
             state: {
               order: data.order || data,
-              total,
+              total: finalTotal,
               shippingCost,
               shippingDiscount,
               finalShipping,
@@ -948,7 +974,7 @@ const handleRemoveItem = async (itemId: string) => {
         navigate("/order-success", {
           state: {
             order: data.order || data,
-            total,
+            total: finalTotal,
             shippingCost,
             shippingDiscount,
             finalShipping,
@@ -1086,9 +1112,7 @@ const handleRemoveItem = async (itemId: string) => {
                 </div>
 
                 {items.map((item: any) => {
-                  const cartItemId = item._id;       // Unique cart item ID (for React key)
-                  const productId = item.productId;   // Product ID for API calls
-
+                  const cartItemId = item._id;
                   const snap = item.productSnapshot || {};
                   const name = snap.name || "Product";
                   const price = Number(
@@ -1176,7 +1200,7 @@ const handleRemoveItem = async (itemId: string) => {
                           <div className="flex items-center gap-2">
                             <div className="flex items-center border border-border rounded-xl">
                               <button
-                               onClick={() => handleUpdateQuantity(cartItemId, item.quantity - 1)}
+                                onClick={() => handleUpdateQuantity(cartItemId, item.quantity - 1)}
                                 className="p-2 hover:bg-muted transition-colors rounded-l-xl disabled:opacity-50"
                                 disabled={isUpdating || item.quantity <= 1}
                               >
@@ -1191,7 +1215,6 @@ const handleRemoveItem = async (itemId: string) => {
                               </span>
                               <button
                                 onClick={() => handleUpdateQuantity(cartItemId, item.quantity + 1)}
-
                                 className="p-2 hover:bg-muted transition-colors rounded-r-xl disabled:opacity-50"
                                 disabled={isUpdating}
                               >
@@ -1230,7 +1253,6 @@ const handleRemoveItem = async (itemId: string) => {
                 })}
 
                 <div className="mt-6 space-y-4">
-                  {/* Coupon section remains unchanged */}
                   <div className="space-y-2">
                     <div className="flex flex-col sm:flex-row gap-2">
                       <div className="relative flex-1">
@@ -1365,13 +1387,8 @@ const handleRemoveItem = async (itemId: string) => {
               </div>
             )}
 
-            {/* Step 2 (Address) and Step 3 (Payment) remain unchanged */}
-            {/* ... (unchanged code) ... */}
-
-            {/* We only need to show the changes for step 1, but for completeness, include the rest unchanged */}
             {step === 2 && (
               <div className="bg-card border border-border rounded-2xl p-4 sm:p-6 space-y-5">
-                {/* Address step content (unchanged) */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <MapPin className="h-5 w-5 text-primary" />
@@ -1757,11 +1774,23 @@ const handleRemoveItem = async (itemId: string) => {
               </div>
 
               <div className="space-y-3 text-sm">
+                {/* Subtotal before GST */}
                 <div className="flex justify-between gap-3">
-                  <span className="text-muted-foreground">Subtotal</span>
-                  <span className="font-medium text-right">{formatPrice(subtotal)}</span>
+                  <span className="text-muted-foreground">Subtotal (excl. GST)</span>
+                  <span className="font-medium text-right">
+                    {formatPrice(gstDetails.subtotalExclGst)}
+                  </span>
                 </div>
 
+                {/* GST Total */}
+                <div className="flex justify-between gap-3">
+                  <span className="text-muted-foreground">GST</span>
+                  <span className="font-medium text-right">
+                    {formatPrice(gstDetails.gstTotal)}
+                  </span>
+                </div>
+
+                {/* Shipping */}
                 <div className="flex justify-between gap-3">
                   <span className="text-muted-foreground">Shipping</span>
                   <span className="font-medium text-right">
@@ -1769,6 +1798,7 @@ const handleRemoveItem = async (itemId: string) => {
                   </span>
                 </div>
 
+                {/* Shipping discount */}
                 {shippingDiscount > 0 && (
                   <div className="flex justify-between gap-3 text-green-600">
                     <span>Shipping Discount</span>
@@ -1776,13 +1806,15 @@ const handleRemoveItem = async (itemId: string) => {
                   </div>
                 )}
 
+                {/* Coupon discount */}
                 {discount > 0 && (
                   <div className="flex justify-between gap-3 text-green-600">
-                    <span>Discount</span>
+                    <span>Coupon Discount</span>
                     <span className="text-right">-{formatPrice(discount)}</span>
                   </div>
                 )}
 
+                {/* Applied coupon info */}
                 {(discount > 0 || shippingDiscount > 0) && appliedCoupon?.code && (
                   <div className="text-xs text-muted-foreground break-words flex items-center gap-1">
                     {appliedCoupon.code === FIRST_ORDER_COUPON_CODE && (
@@ -1794,6 +1826,7 @@ const handleRemoveItem = async (itemId: string) => {
                   </div>
                 )}
 
+                {/* Delivery location */}
                 {resolvedAddressForShipping?.city && (
                   <div className="text-xs text-muted-foreground break-words">
                     Deliver to:{" "}
@@ -1806,17 +1839,18 @@ const handleRemoveItem = async (itemId: string) => {
                   </div>
                 )}
 
+                {/* Final Total (incl. GST) */}
                 <div className="border-t border-border pt-3 mt-3">
                   <div className="flex justify-between gap-3 text-base sm:text-lg font-bold">
-                    <span>Total</span>
-                    <span className="text-right">{formatPrice(total)}</span>
+                    <span>Total (incl. GST)</span>
+                    <span className="text-right">{formatPrice(finalTotal)}</span>
                   </div>
                 </div>
               </div>
 
               {step === 1 && freeShippingRemaining > 0 && (
                 <div className="mt-4 text-xs text-muted-foreground">
-                  Add {formatPrice(freeShippingRemaining)} more only if you still want to use your old free-shipping offer logic.
+                  Add {formatPrice(freeShippingRemaining)} more to get free shipping.
                 </div>
               )}
 

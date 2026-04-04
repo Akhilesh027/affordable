@@ -1,12 +1,13 @@
 // src/pages/CategoriesPage.tsx
-import { useParams, Link, useSearchParams } from "react-router-dom";
+import { useParams, Link, useSearchParams, useNavigate } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
 import { ProductGrid } from "@/components/products/ProductGrid";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useEffect, useMemo, useState } from "react";
-import { Filter, SlidersHorizontal } from "lucide-react";
+import { Search, Filter, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Sheet,
   SheetContent,
@@ -15,28 +16,19 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 
-const API_PRODUCTS = "https://api.jsgallor.com/api/affordable"; // products api (uses tier filter)
-const API_ADMIN = "https://api.jsgallor.com/api/admin"; // categories api
-
-const colors = [
-  { name: "Brown", value: "#8B7355" },
-  { name: "Black", value: "#1C1C1C" },
-  { name: "White", value: "#F5E6D3" },
-  { name: "Grey", value: "#4A4A4A" },
-  { name: "Green", value: "#4A6741" },
-  { name: "Blue", value: "#2C3E50" },
-];
+const API_PRODUCTS = "https://api.jsgallor.com/api/affordable";
+const API_ADMIN = "https://api.jsgallor.com/api/admin";
 
 type ApiProduct = {
   _id: string;
   name: string;
   price: number;
-  category: string; // slug
-  subcategory?: string; // slug
+  category: string;
+  subcategory?: string;
   image?: string;
   availability?: string;
   quantity?: number;
-  color?: string; // hex
+  color?: string;
 };
 
 type Product = {
@@ -46,8 +38,8 @@ type Product = {
   category: string;
   subcategory?: string;
   inStock: boolean;
-  colors?: string[];
   image?: string;
+  color?: string;
 };
 
 type ApiCategory = {
@@ -65,13 +57,16 @@ type ApiCategory = {
 const norm = (s?: string) => String(s || "").trim().toLowerCase();
 
 export default function CategoriesPage() {
-  const { categoryId } = useParams(); // /categories/:categoryId (category slug)
+  const navigate = useNavigate();
+  const { categoryId } = useParams();
   const [searchParams] = useSearchParams();
-  const subSlug = searchParams.get("sub") || ""; // /categories/:categoryId?sub=child-slug
-  const showAll = (searchParams.get("tier") || "").toLowerCase() === "all"; // ✅ ?tier=all to show all tiers
+  const subSlug = searchParams.get("sub") || "";
+  const showAll = (searchParams.get("tier") || "").toLowerCase() === "all";
 
+  // UI filters
+  const [searchTerm, setSearchTerm] = useState("");
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 100000]);
-  const [selectedColors, setSelectedColors] = useState<string[]>([]);
+  const [selectedColor, setSelectedColor] = useState<string>("");
   const [inStockOnly, setInStockOnly] = useState(false);
 
   const [categories, setCategories] = useState<ApiCategory[]>([]);
@@ -82,11 +77,7 @@ export default function CategoriesPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  /**
-   * ✅ Fetch categories:
-   * - include segment=all and segment=affordable (only)
-   * - filter: status=active + showOnWebsite (if present)
-   */
+  // Fetch categories (affordable + all)
   useEffect(() => {
     const fetchCategories = async () => {
       try {
@@ -107,12 +98,10 @@ export default function CategoriesPage() {
         const a1: ApiCategory[] = Array.isArray(j1) ? j1 : j1?.data?.items || [];
         const a2: ApiCategory[] = Array.isArray(j2) ? j2 : j2?.data?.items || [];
 
-        // merge unique by slug (keep affordable if duplicates)
         const map = new Map<string, ApiCategory>();
         [...a1, ...a2].forEach((c) => {
           if (!c?.slug) return;
           const prev = map.get(c.slug);
-          // prefer affordable over all
           if (!prev) return map.set(c.slug, c);
           if (norm(prev.segment) === "all" && norm(c.segment) === "affordable") {
             map.set(c.slug, c);
@@ -120,15 +109,12 @@ export default function CategoriesPage() {
         });
 
         let merged = Array.from(map.values());
-
         merged = merged.filter((c) => {
           if (c.status && c.status !== "active") return false;
           if (typeof c.showOnWebsite === "boolean" && !c.showOnWebsite) return false;
           const seg = norm(c.segment);
-          return seg === "all" || seg === "affordable"; // ✅ only allow these
+          return seg === "all" || seg === "affordable";
         });
-
-        // sort by order then name
         merged.sort((a, b) => {
           const ao = Number(a.order ?? 0);
           const bo = Number(b.order ?? 0);
@@ -149,7 +135,6 @@ export default function CategoriesPage() {
   }, []);
 
   const parents = useMemo(() => categories.filter((c) => !c.parentId), [categories]);
-
   const selectedParent = useMemo(() => {
     if (!categoryId) return null;
     return parents.find((p) => p.slug === categoryId) || null;
@@ -160,7 +145,6 @@ export default function CategoriesPage() {
     return categories.filter((c) => String(c.parentId) === String(selectedParent.id));
   }, [categories, selectedParent]);
 
-  // ✅ if subSlug is invalid for this parent, ignore it
   const safeSubSlug = useMemo(() => {
     if (!subSlug) return "";
     const ok = childrenOfParent.some((c) => c.slug === subSlug);
@@ -172,82 +156,109 @@ export default function CategoriesPage() {
     return childrenOfParent.find((c) => c.slug === safeSubSlug) || null;
   }, [childrenOfParent, safeSubSlug]);
 
-  /**
-   * ✅ Fetch products:
-   * - uses your updated backend:
-   *   /products?tier=all|affordable&category=...&subcategory=...
-   */
-useEffect(() => {
-  const fetchProducts = async () => {
-    try {
-      setLoading(true);
-      setError("");
+  // Fetch products based on category/subcategory + tier (server‑side)
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setLoading(true);
+        setError("");
 
-      const qs = new URLSearchParams();
+        const qs = new URLSearchParams();
+        qs.set("tier", showAll ? "all" : "affordable");
+        if (categoryId) qs.set("category", categoryId);
+        if (safeSubSlug) qs.set("subcategory", safeSubSlug);
 
-      // ✅ tier logic
-      qs.set("tier", showAll ? "all" : "affordable");
+        const url = `${API_PRODUCTS}/products?${qs.toString()}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Failed to fetch products");
 
-      // ✅ category: send whatever you have (id preferred)
-      // categoryId can be ObjectId string, OR you can pass a slug string
-      if (categoryId) qs.set("category", categoryId);
+        const data = await res.json().catch(() => ({}));
+        const arr: ApiProduct[] = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.products)
+          ? data.products
+          : [];
 
-      // ✅ subcategory should not depend on categoryId
-      if (safeSubSlug) qs.set("subcategory", safeSubSlug);
+        const mapped: Product[] = arr.map((p) => {
+          const qty = Number(p.quantity ?? 0);
+          const avail = String(p.availability ?? "").toLowerCase();
+          return {
+            _id: p._id,
+            name: p.name,
+            price: Number(p.price) || 0,
+            category: p.category,
+            subcategory: p.subcategory,
+            image: p.image,
+            inStock: qty > 0 && avail !== "out of stock",
+            color: p.color,
+          };
+        });
 
-      const url = `${API_PRODUCTS}/products?${qs.toString()}`;
+        setProducts(mapped);
+      } catch (e: any) {
+        setError(e?.message || "Something went wrong");
+        setProducts([]);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("Failed to fetch products");
+    fetchProducts();
+  }, [categoryId, safeSubSlug, showAll]);
 
-      const data = await res.json().catch(() => ({}));
-      const arr: ApiProduct[] = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.products)
-        ? data.products
-        : [];
-const mapped: Product[] = arr.map((p) => {
-  const qty = Number(p.quantity ?? 0);
-  const avail = String(p.availability ?? "").toLowerCase();
-  return {
-    _id: p._id,
-    name: p.name,
-    price: Number(p.price) || 0,
-    category: p.category,
-    subcategory: p.subcategory,
-    image: p.image,
-    inStock: qty > 0 && avail !== "out of stock",
-    colors: p.color ? [p.color] : [],
-  };
-});
+  // Update price range limits based on fetched products
+  const minMaxPrice = useMemo(() => {
+    const prices = products.map((p) => p.price);
+    if (prices.length === 0) return [0, 100000];
+    return [Math.min(...prices), Math.max(...prices)];
+  }, [products]);
 
-      setProducts(mapped);
-    } catch (e: any) {
-      setError(e?.message || "Something went wrong");
-      setProducts([]);
-    } finally {
-      setLoading(false);
+  // Reset price range when products change
+  useEffect(() => {
+    if (products.length) {
+      setPriceRange([minMaxPrice[0], minMaxPrice[1]]);
+    }
+  }, [minMaxPrice]);
+
+  // Available colors from products (for dropdown) - FIXED: ensure strings
+  const availableColors = useMemo(() => {
+    const colorSet = new Set<string>();
+    products.forEach((p) => {
+      if (p.color && typeof p.color === 'string') {
+        const trimmed = p.color.trim();
+        if (trimmed) colorSet.add(trimmed);
+      }
+    });
+    return Array.from(colorSet).sort();
+  }, [products]);
+
+  // Client‑side filters: search, price, color, stock
+  const filteredProducts = useMemo(() => {
+    return products.filter((p) => {
+      const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesPrice = p.price >= priceRange[0] && p.price <= priceRange[1];
+      const matchesColor = !selectedColor || p.color === selectedColor;
+      const matchesStock = !inStockOnly || p.inStock;
+      return matchesSearch && matchesPrice && matchesColor && matchesStock;
+    });
+  }, [products, searchTerm, priceRange, selectedColor, inStockOnly]);
+
+  // Navigation helpers for dropdowns
+  const handleParentChange = (slug: string) => {
+    if (!slug) {
+      navigate(`/categories${showAll ? "?tier=all" : ""}`);
+    } else {
+      navigate(`/categories/${slug}${showAll ? "?tier=all" : ""}`);
     }
   };
 
-  fetchProducts();
-}, [categoryId, safeSubSlug, showAll]);
-
-  // ✅ Apply UI filters
-  const filteredProducts = useMemo(() => {
-    return products.filter((product) => {
-      const inPriceRange =
-        product.price >= priceRange[0] && product.price <= priceRange[1];
-
-      const matchesStock = !inStockOnly || product.inStock;
-
-      const matchesColor =
-        selectedColors.length === 0 ||
-        product.colors?.some((c) => selectedColors.includes(c));
-
-      return inPriceRange && matchesStock && matchesColor;
-    });
-  }, [products, priceRange, inStockOnly, selectedColors]);
+  const handleSubChange = (slug: string) => {
+    if (!slug) {
+      navigate(`/categories/${categoryId}${showAll ? "?tier=all" : ""}`);
+    } else {
+      navigate(`/categories/${categoryId}?sub=${slug}${showAll ? "&tier=all" : ""}`);
+    }
+  };
 
   const pageTitle = useMemo(() => {
     if (selectedChild) return selectedChild.name;
@@ -255,19 +266,74 @@ const mapped: Product[] = arr.map((p) => {
     return "All Products";
   }, [selectedParent, selectedChild]);
 
+  // Filter content component (used in both desktop sidebar and mobile sheet)
   const FilterContent = () => (
     <div className="space-y-6">
+      {/* Search */}
+      <div>
+        <h4 className="font-semibold mb-3 flex items-center gap-2">
+          <Search className="h-4 w-4" />
+          Search
+        </h4>
+        <Input
+          type="text"
+          placeholder="Search products..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full"
+        />
+      </div>
+
+      {/* Category Dropdown */}
+      <div>
+        <h4 className="font-semibold mb-3">Category</h4>
+        <select
+          value={categoryId || ""}
+          onChange={(e) => handleParentChange(e.target.value)}
+          className="w-full px-3 py-2 rounded-lg border border-input bg-background"
+          disabled={catLoading}
+        >
+          <option value="">All Categories</option>
+          {parents.map((p) => (
+            <option key={p.id} value={p.slug}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Subcategory Dropdown (only if parent selected) */}
+      {selectedParent && (
+        <div>
+          <h4 className="font-semibold mb-3">Subcategory</h4>
+          <select
+            value={safeSubSlug || ""}
+            onChange={(e) => handleSubChange(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg border border-input bg-background"
+            disabled={childrenOfParent.length === 0}
+          >
+            <option value="">All {selectedParent.name}</option>
+            {childrenOfParent.map((c) => (
+              <option key={c.id} value={c.slug}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* Price Range */}
       <div>
-        <h4 className="font-semibold mb-4 flex items-center gap-2">
+        <h4 className="font-semibold mb-3 flex items-center gap-2">
           <SlidersHorizontal className="h-4 w-4" />
           Price Range
         </h4>
         <Slider
           value={priceRange}
           onValueChange={(val) => setPriceRange([val[0], val[1]] as [number, number])}
-          max={100000}
-          step={1000}
+          min={minMaxPrice[0]}
+          max={minMaxPrice[1]}
+          step={100}
           className="mb-2"
         />
         <div className="flex justify-between text-sm text-muted-foreground">
@@ -276,35 +342,28 @@ const mapped: Product[] = arr.map((p) => {
         </div>
       </div>
 
-      {/* Colors */}
-      <div>
-        <h4 className="font-semibold mb-4">Colors</h4>
-        <div className="flex flex-wrap gap-2">
-          {colors.map((color) => (
-            <button
-              key={color.name}
-              onClick={() =>
-                setSelectedColors((prev) =>
-                  prev.includes(color.value)
-                    ? prev.filter((c) => c !== color.value)
-                    : [...prev, color.value]
-                )
-              }
-              className={`w-8 h-8 rounded-lg border-2 transition-all ${
-                selectedColors.includes(color.value)
-                  ? "border-primary ring-2 ring-primary/30"
-                  : "border-border hover:border-primary/50"
-              }`}
-              style={{ backgroundColor: color.value }}
-              title={color.name}
-            />
-          ))}
+      {/* Color Dropdown - FIXED: safe rendering */}
+      {availableColors.length > 0 && (
+        <div>
+          <h4 className="font-semibold mb-3">Color</h4>
+          <select
+            value={selectedColor}
+            onChange={(e) => setSelectedColor(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg border border-input bg-background"
+          >
+            <option value="">All Colors</option>
+            {availableColors.map((color) => (
+              <option key={color} value={color}>
+                {color.charAt(0).toUpperCase() + color.slice(1)}
+              </option>
+            ))}
+          </select>
         </div>
-      </div>
+      )}
 
       {/* Availability */}
       <div>
-        <h4 className="font-semibold mb-4">Availability</h4>
+        <h4 className="font-semibold mb-3">Availability</h4>
         <label className="flex items-center gap-2 cursor-pointer">
           <Checkbox
             checked={inStockOnly}
@@ -312,101 +371,6 @@ const mapped: Product[] = arr.map((p) => {
           />
           <span className="text-sm">In Stock Only</span>
         </label>
-      </div>
-
-      {/* ✅ Category Navigation */}
-      <div>
-        <h4 className="font-semibold mb-4">Categories</h4>
-
-        {catLoading ? (
-          <p className="text-sm text-muted-foreground">Loading categories...</p>
-        ) : catError ? (
-          <p className="text-sm text-red-500">{catError}</p>
-        ) : (
-          <div className="space-y-3">
-            {/* Parents */}
-            <div className="space-y-1">
-              <Link
-                to={`/categories${showAll ? "?tier=all" : ""}`}
-                className={`block text-sm transition-colors ${
-                  !categoryId ? "text-primary font-medium" : "text-muted-foreground hover:text-primary"
-                }`}
-              >
-                All Products
-              </Link>
-
-              {parents.map((p) => {
-                const active = p.slug === categoryId;
-                return (
-                  <Link
-                    key={p.id}
-                    to={`/categories/${p.slug}${showAll ? "?tier=all" : ""}`}
-                    className={`block text-sm transition-colors ${
-                      active ? "text-primary font-medium" : "text-muted-foreground hover:text-primary"
-                    }`}
-                  >
-                    {p.name}
-                    {typeof p.productCount === "number" ? (
-                      <span className="text-xs text-muted-foreground"> ({p.productCount})</span>
-                    ) : null}
-                  </Link>
-                );
-              })}
-            </div>
-
-            {/* Children */}
-            {selectedParent ? (
-              <div className="pt-2 border-t border-border/60">
-                <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">
-                  {selectedParent.name} — Subcategories
-                </div>
-
-                {childrenOfParent.length ? (
-                  <div className="space-y-1">
-                    <Link
-                      to={`/categories/${selectedParent.slug}${showAll ? "?tier=all" : ""}`}
-                      className={`block text-sm transition-colors ${
-                        !safeSubSlug
-                          ? "text-primary font-medium"
-                          : "text-muted-foreground hover:text-primary"
-                      }`}
-                    >
-                      All in {selectedParent.name}
-                    </Link>
-
-                    {childrenOfParent.map((c) => {
-                      const active = c.slug === safeSubSlug;
-
-                      // keep tier param when switching subcategory
-                      const subParams = new URLSearchParams();
-                      subParams.set("sub", c.slug);
-                      if (showAll) subParams.set("tier", "all");
-
-                      return (
-                        <Link
-                          key={c.id}
-                          to={`/categories/${selectedParent.slug}?${subParams.toString()}`}
-                          className={`block text-sm transition-colors ${
-                            active
-                              ? "text-primary font-medium"
-                              : "text-muted-foreground hover:text-primary"
-                          }`}
-                        >
-                          {c.name}
-                          {typeof c.productCount === "number" ? (
-                            <span className="text-xs text-muted-foreground"> ({c.productCount})</span>
-                          ) : null}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No subcategories found.</p>
-                )}
-              </div>
-            ) : null}
-          </div>
-        )}
       </div>
     </div>
   );
@@ -416,16 +380,12 @@ const mapped: Product[] = arr.map((p) => {
       <div className="container mx-auto px-4 py-8">
         {/* Breadcrumb */}
         <nav className="text-sm text-muted-foreground mb-6">
-          <Link to="/" className="hover:text-primary">
-            Home
-          </Link>
+          <Link to="/" className="hover:text-primary">Home</Link>
           <span className="mx-2">/</span>
-
           <Link to={`/categories${showAll ? "?tier=all" : ""}`} className="hover:text-primary">
             Categories
           </Link>
-
-          {selectedParent ? (
+          {selectedParent && (
             <>
               <span className="mx-2">/</span>
               <Link
@@ -435,14 +395,13 @@ const mapped: Product[] = arr.map((p) => {
                 {selectedParent.name}
               </Link>
             </>
-          ) : null}
-
-          {selectedChild ? (
+          )}
+          {selectedChild && (
             <>
               <span className="mx-2">/</span>
               <span className="text-foreground">{selectedChild.name}</span>
             </>
-          ) : null}
+          )}
         </nav>
 
         {/* Header */}
@@ -453,8 +412,6 @@ const mapped: Product[] = arr.map((p) => {
               {loading ? "Loading..." : `${filteredProducts.length} products found`}
             </p>
           </div>
-
-          {/* Mobile filter button */}
           <Sheet>
             <SheetTrigger asChild>
               <Button variant="outline" className="md:hidden">
@@ -485,7 +442,7 @@ const mapped: Product[] = arr.map((p) => {
             </div>
           </aside>
 
-          {/* Products */}
+          {/* Products Grid */}
           <div className="flex-1">
             {error ? (
               <div className="text-center py-16">

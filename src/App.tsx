@@ -20,6 +20,7 @@ import OrderSuccess from "./pages/OrderSuccess";
 import { WishlistProvider } from "./context/WishlistContext";
 import Wishlist from "./pages/Wishlist";
 import ResetPassword from "./pages/resetpassword";
+import SearchPage from "./components/layout/SearchPage";
 
 const queryClient = new QueryClient();
 
@@ -88,6 +89,8 @@ const App = () => (
                 <Route path="/signup" element={<Signup />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/orders" element={<Orders />} />
+                <Route path="/search" element={<SearchPage />} />
+
                 <Route path="/wishlist" element={<Wishlist />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="*" element={<NotFound />} />

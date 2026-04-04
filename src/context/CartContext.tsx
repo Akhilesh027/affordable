@@ -17,10 +17,12 @@ export interface CartItem {
   };
   productSnapshot: {
     name: string;
-    price: number;
+    price: number;           // final discounted price (after product discount, before GST)
     originalPrice?: number;
-    discount?: number;
-    finalPrice?: number;
+    discount?: number;       // product discount percentage
+    gst: number;             // GST percentage (0-100)
+    isCustomized: boolean;   // whether product is customizable
+    finalPrice: number;      // same as price, kept for clarity
     image: string;
     category?: string;
     inStock: boolean;
@@ -35,13 +37,14 @@ interface CartContextType {
   items: CartItem[];
   loading: boolean;
   error: string | null;
-  subtotal: number;
+  subtotal: number;          // sum of (finalPrice * quantity) – before GST & coupon
   totalItems: number;
   addToCart: (product: any, quantity?: number, variant?: any, attributes?: any) => Promise<void>;
   updateQuantity: (itemId: string, quantity: number) => Promise<void>;
   removeFromCart: (itemId: string) => Promise<void>;
   clearCart: () => Promise<void>;
   refetchCart: () => Promise<void>;
+  mergeGuestCart: () => Promise<void>;   // new: call after login
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -55,10 +58,10 @@ const getAuth = () => {
   return { token, userId };
 };
 
-// Helper: compute totals from items
+// Helper: compute totals from items using finalPrice
 const computeTotals = (items: CartItem[]) => {
   const totalItems = items.reduce((sum, i) => sum + i.quantity, 0);
-  const subtotal = items.reduce((sum, i) => sum + (i.productSnapshot.price * i.quantity), 0);
+  const subtotal = items.reduce((sum, i) => sum + (i.productSnapshot.finalPrice * i.quantity), 0);
   return { totalItems, subtotal };
 };
 
@@ -68,14 +71,20 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   const [error, setError] = useState<string | null>(null);
   const { token, userId } = getAuth();
 
-  // Fetch cart from backend (or load from localStorage if offline/guest)
+  // Fetch cart from backend
   const fetchCart = useCallback(async () => {
     if (!userId) {
-      // For guest users, you may want to load from localStorage
+      // Guest: load from localStorage
       const saved = localStorage.getItem("guest_cart");
       if (saved) {
-        const parsed = JSON.parse(saved);
-        setItems(parsed);
+        try {
+          const parsed = JSON.parse(saved);
+          setItems(parsed);
+        } catch (e) {
+          console.error("Failed to parse guest cart", e);
+        }
+      } else {
+        setItems([]);
       }
       return;
     }
@@ -102,7 +111,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     await fetchCart();
   }, [fetchCart]);
 
-  // Sync to localStorage for guests (or for offline)
+  // Sync guest cart to localStorage
   useEffect(() => {
     if (!userId) {
       localStorage.setItem("guest_cart", JSON.stringify(items));
@@ -114,6 +123,60 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     fetchCart();
   }, [fetchCart]);
 
+  // --- MERGE GUEST CART AFTER LOGIN ---
+  const mergeGuestCart = useCallback(async () => {
+    const { token: authToken, userId: authUserId } = getAuth();
+    if (!authUserId || !authToken) return;
+
+    const guestCartRaw = localStorage.getItem("guest_cart");
+    if (!guestCartRaw) return;
+
+    let guestItems: CartItem[] = [];
+    try {
+      guestItems = JSON.parse(guestCartRaw);
+    } catch (e) {
+      console.error("Invalid guest cart", e);
+      return;
+    }
+
+    if (guestItems.length === 0) return;
+
+    setLoading(true);
+    try {
+      // Send each guest item to backend one by one
+      for (const guestItem of guestItems) {
+        const payload = {
+          userId: authUserId,
+          productId: guestItem.productId,
+          variantId: guestItem.variantId || null,
+          quantity: guestItem.quantity,
+          attributes: guestItem.attributes || {},
+          productSnapshot: guestItem.productSnapshot,
+        };
+
+        await fetch(`${API_BASE}/api/cart/affordable/add`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${authToken}`,
+          },
+          body: JSON.stringify(payload),
+        });
+      }
+
+      // Clear guest cart after successful merge
+      localStorage.removeItem("guest_cart");
+      // Refetch the updated cart from server
+      await fetchCart();
+      toast.success("Guest cart merged successfully");
+    } catch (err: any) {
+      console.error("Merge failed", err);
+      toast.error("Could not merge guest cart");
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchCart]);
+
   // Add to cart
   const addToCart = useCallback(async (product: any, quantity = 1, variant?: any, attributes?: any) => {
     if (!product) return;
@@ -121,9 +184,15 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     const { token: authToken, userId: authUserId } = getAuth();
     if (!authUserId) {
       // Guest mode – store in localStorage
+      const finalPrice = product.finalPrice ?? product.price ?? 0;
+      const gst = product.gst ?? 0;
+      const isCustomized = product.isCustomized ?? false;
+
       const existingItem = items.find(i => i.productId === product._id && (!variant || i.variantId === variant?._id));
       if (existingItem) {
-        const updated = items.map(i => i._id === existingItem._id ? { ...i, quantity: i.quantity + quantity } : i);
+        const updated = items.map(i =>
+          i._id === existingItem._id ? { ...i, quantity: i.quantity + quantity } : i
+        );
         setItems(updated);
       } else {
         const newItem: CartItem = {
@@ -138,10 +207,12 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
           },
           productSnapshot: {
             name: product.name,
-            price: product.price,
-            originalPrice: product.originalPrice,
-            discount: product.discount,
-            finalPrice: product.finalPrice,
+            price: finalPrice,
+            originalPrice: product.originalPrice ?? product.price,
+            discount: product.discount ?? 0,
+            gst,
+            isCustomized,
+            finalPrice,
             image: product.image,
             category: product.category,
             inStock: product.inStock,
@@ -163,6 +234,10 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
 
     setLoading(true);
     try {
+      const finalPrice = product.finalPrice ?? product.price ?? 0;
+      const gst = product.gst ?? 0;
+      const isCustomized = product.isCustomized ?? false;
+
       const payload = {
         userId: authUserId,
         productId: product._id,
@@ -175,10 +250,12 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
         },
         productSnapshot: {
           name: product.name,
-          price: product.price,
-          originalPrice: product.originalPrice,
-          discount: product.discount,
-          finalPrice: product.finalPrice,
+          price: finalPrice,
+          originalPrice: product.originalPrice ?? product.price,
+          discount: product.discount ?? 0,
+          gst,
+          isCustomized,
+          finalPrice,
           image: product.image,
           category: product.category,
           inStock: product.inStock,
@@ -333,6 +410,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
         removeFromCart,
         clearCart,
         refetchCart,
+        mergeGuestCart,
       }}
     >
       {children}

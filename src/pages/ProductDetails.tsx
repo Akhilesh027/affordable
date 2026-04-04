@@ -20,7 +20,7 @@ import { toast } from "sonner";
 
 const API_BASE = "https://api.jsgallor.com/api/affordable";
 
-// Extended API types to include variants and discount
+// Extended API types to include variants, discount, gst, isCustomized
 type ApiVariant = {
   _id?: string;
   attributes: {
@@ -42,7 +42,9 @@ type ApiProduct = {
   description?: string;
   price: number;               // original price
   discount?: number;           // discount percentage (0‑100)
-  originalPrice?: number;      // optional legacy field
+  gst?: number;                // GST percentage (0‑100)
+  isCustomized?: boolean;      // whether product is customizable
+  originalPrice?: number;
   quantity?: number;
   availability?: string;
   color?: string | string[];
@@ -66,8 +68,10 @@ type UiProduct = {
   description: string;
   price: number;               // original price
   discount: number;            // discount percentage (0‑100)
+  gst: number;                 // GST percentage (0‑100)
+  isCustomized: boolean;       // customization flag
   finalPrice: number;          // computed price after discount
-  originalPrice?: number;      // keep for legacy
+  originalPrice?: number;
   image: string;
   images: string[];
   inStock: boolean;
@@ -124,6 +128,8 @@ const mapApiProductToUi = (p: ApiProduct): UiProduct => {
     description: p.description || "",
     price: originalPrice,
     discount,
+    gst: p.gst ?? 0,
+    isCustomized: p.isCustomized ?? false,
     finalPrice,
     originalPrice: p.originalPrice,
     image: p.image,
@@ -311,11 +317,14 @@ const ProductDetails = () => {
     if (selectedFabric) attributes.fabric = selectedFabric;
 
     // Create a temporary product object with discounted price for cart
+    // Include gst and isCustomized for proper checkout calculations
     const cartProduct = {
       ...product,
-      price: displayPrice,        // use discounted price
-      originalPrice: originalPrice, // original for reference
+      price: displayPrice,        // use discounted price (final price after product discount)
+      originalPrice: originalPrice,
       discount,
+      gst: product.gst,
+      isCustomized: product.isCustomized,
     };
 
     addToCart(
@@ -339,12 +348,10 @@ const ProductDetails = () => {
         await removeFromWishlist(product._id);
       } else {
         // Convert UiProduct to the shape expected by wishlist (Product type)
-        // Assuming product already matches Product interface (has _id, name, image, price, etc.)
         await addToWishlist(product as any);
       }
     } catch (err) {
       console.error("Wishlist toggle failed:", err);
-      // Optionally show a toast notification
     } finally {
       setIsTogglingWishlist(false);
     }
@@ -588,6 +595,22 @@ const ProductDetails = () => {
               </div>
             </div>
 
+            {/* Customizable Product Button */}
+            {product.isCustomized && (
+              <div className="pt-1">
+                <Button
+                  variant="outline"
+                  className="w-full sm:w-auto border-primary text-primary hover:bg-primary/10"
+                  onClick={() => navigate(`/customize/${product._id}`)}
+                >
+                  ✨ Customize This Product
+                </Button>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Choose size, color, fabric, and add personal touches.
+                </p>
+              </div>
+            )}
+
             {/* Add to Cart & Actions */}
             <div className="flex flex-col sm:flex-row gap-3">
               <Button
@@ -645,9 +668,10 @@ const ProductDetails = () => {
                   ["Available Sizes", product.sizes?.join(", ") || "—"],
                   ["Available Colors", product.colors?.length ? `${product.colors.length} color(s)` : "—"],
                   ["Available Fabrics", product.fabrics?.join(", ") || "—"],
-                  // Extra pillows removed from here
                   ["Weight", product.weight || "—"],
                   ["Availability", product.inStock ? "In Stock" : "Out of Stock"],
+                  ["GST", product.gst ? `${product.gst}%` : "—"],
+                  ["Customizable", product.isCustomized ? "Yes" : "No"],
                 ].map(([label, value], index) => (
                   <tr key={index}>
                     <td className="py-3 pr-4 font-medium text-foreground w-[40%] sm:w-1/3">
