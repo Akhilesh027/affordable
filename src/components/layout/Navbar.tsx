@@ -1,10 +1,10 @@
-import { Link, useLocation, useNavigate } from "react-router-dom"; // add useNavigate
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ShoppingCart, User, Search, Menu, X, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
-import { useEffect, useMemo, useState, FormEvent } from "react"; // add FormEvent
+import { useEffect, useMemo, useState, FormEvent } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,7 +39,6 @@ const fallbackCategories = [
 
 const norm = (s?: string) => String(s || "").trim().toLowerCase();
 
-// Helper component for avatar with fallback
 const UserAvatar = ({ user }: { user: any }) => {
   const [imgError, setImgError] = useState(false);
   const avatarUrl = user?.avatar || user?.profilePicture || user?.image || user?.photo;
@@ -68,7 +67,7 @@ export const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const location = useLocation();
-  const navigate = useNavigate(); // for search navigation
+  const navigate = useNavigate();
 
   const [categories, setCategories] = useState<ApiCategory[]>([]);
   const [catLoading, setCatLoading] = useState(false);
@@ -128,14 +127,12 @@ export const Navbar = () => {
     return location.pathname === path || location.pathname.startsWith(path);
   };
 
-  // Handle search submission
   const handleSearch = (e: FormEvent) => {
     e.preventDefault();
     const trimmed = searchQuery.trim();
     if (!trimmed) return;
-    // Navigate to search page with query param
     navigate(`/search?q=${encodeURIComponent(trimmed)}`);
-    setSearchQuery(""); // optional: clear input
+    setSearchQuery(""); // optional: clear after navigation
   };
 
   return (
@@ -155,7 +152,7 @@ export const Navbar = () => {
               </div>
             </Link>
 
-            {/* Search Form */}
+            {/* Search Form - fully functional */}
             <form onSubmit={handleSearch} className="hidden md:flex flex-1 max-w-md mx-4">
               <div className="relative w-full">
                 <Input
@@ -173,7 +170,6 @@ export const Navbar = () => {
 
             {/* Right actions */}
             <div className="flex items-center gap-2">
-              {/* Segment Buttons - desktop only */}
               <div className="hidden md:flex items-center gap-2 mr-1">
                 <a
                   href="https://signaturespaces.jsgallor.com"
@@ -195,14 +191,12 @@ export const Navbar = () => {
                 </a>
               </div>
 
-              {/* Wishlist */}
               <Link to="/wishlist">
                 <Button variant="ghost" size="icon" className="hidden sm:flex h-9 w-9">
                   <Heart className="h-4 w-4" />
                 </Button>
               </Link>
 
-              {/* Cart */}
               <Link to="/checkout">
                 <Button variant="ghost" size="icon" className="relative h-9 w-9">
                   <ShoppingCart className="h-4 w-4" />
@@ -214,7 +208,6 @@ export const Navbar = () => {
                 </Button>
               </Link>
 
-              {/* Auth - Desktop only */}
               <div className="hidden md:block">
                 {isAuthenticated ? (
                   <DropdownMenu>
@@ -237,7 +230,6 @@ export const Navbar = () => {
                 )}
               </div>
 
-              {/* Mobile toggle */}
               <Button
                 variant="ghost"
                 size="icon"
@@ -270,10 +262,9 @@ export const Navbar = () => {
         </div>
       </nav>
 
-      {/* Mobile menu (hamburger) */}
+      {/* Mobile menu */}
       {mobileMenuOpen && (
         <div className="md:hidden bg-white p-4 space-y-4 border-b border-border/30">
-          {/* Mobile user section */}
           <div className="border-b border-gray-100 pb-3 mb-2">
             {isAuthenticated ? (
               <div className="flex items-center gap-3">
@@ -297,7 +288,6 @@ export const Navbar = () => {
             )}
           </div>
 
-          {/* Mobile segment buttons */}
           <div className="flex gap-2">
             <a
               href="https://signaturespaces.jsgallor.com"
@@ -321,7 +311,6 @@ export const Navbar = () => {
             </a>
           </div>
 
-          {/* Mobile categories */}
           <div className="grid grid-cols-2 gap-2">
             {navCats.map((cat) => (
               <Link key={cat.path} to={cat.path} onClick={() => setMobileMenuOpen(false)}>
