@@ -487,9 +487,10 @@ const ProductDetails = () => {
               )}
             </div>
 
-            <p className="text-sm sm:text-base text-muted-foreground leading-6 sm:leading-7">
+            {/* Description with preserved line breaks */}
+            <div className="text-sm sm:text-base text-muted-foreground leading-6 sm:leading-7 whitespace-pre-wrap">
               {product.description || "No description available."}
-            </p>
+            </div>
 
             {/* Color Selection */}
             {availableColors.length > 0 && (
@@ -597,22 +598,22 @@ const ProductDetails = () => {
 
             {/* Customizable Product Button */}
             {product.isCustomized && (
-  <div className="pt-1">
-    <Button
-      variant="outline"
-      className="w-full sm:w-auto border-primary text-primary hover:bg-primary/10"
-      onClick={() => {
-        const message = `Hi, I'm interested in customizing this product:%0A%0A*Name:* ${encodeURIComponent(product.name)}%0A*ID:* ${product._id}%0A%0ACan you please share customization options?`;
-        window.open(`https://wa.me/917075848516?text=${message}`, '_blank');
-      }}
-    >
-      ✨ Customize This Product
-    </Button>
-    <p className="text-xs text-muted-foreground mt-2">
-      Choose size, color, fabric, and add personal touches.
-    </p>
-  </div>
-)}
+              <div className="pt-1">
+                <Button
+                  variant="outline"
+                  className="w-full sm:w-auto border-primary text-primary hover:bg-primary/10"
+                  onClick={() => {
+                    const message = `Hi, I'm interested in customizing this product:%0A%0A*Name:* ${encodeURIComponent(product.name)}%0A*ID:* ${product._id}%0A%0ACan you please share customization options?`;
+                    window.open(`https://wa.me/917075848516?text=${message}`, '_blank');
+                  }}
+                >
+                  ✨ Customize This Product
+                </Button>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Choose size, color, fabric, and add personal touches.
+                </p>
+              </div>
+            )}
 
             {/* Add to Cart & Actions */}
             <div className="flex flex-col sm:flex-row gap-3">
