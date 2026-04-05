@@ -17,7 +17,7 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
-  // 🔥 Forgot Password States
+  // Forgot Password States
   const [showForgotModal, setShowForgotModal] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
   const [resetLoading, setResetLoading] = useState(false);
@@ -159,7 +159,7 @@ const Login = () => {
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-3"
                 >
-                  {showPassword ? <EyeOff /> : <Eye />}
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
               </div>
             </div>
@@ -188,10 +188,20 @@ const Login = () => {
               onError={() => toast.error("Google failed")}
             />
           </div>
+
+          {/* ✅ Register Link */}
+          <div className="mt-6 text-center text-sm">
+            <p className="text-gray-600">
+              Don't have an account?{" "}
+              <Link to="/signup" className="text-primary font-semibold hover:underline">
+                Register here
+              </Link>
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* 🔥 Forgot Password Modal */}
+      {/* Forgot Password Modal */}
       {showForgotModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-2xl w-[350px] shadow-xl">
