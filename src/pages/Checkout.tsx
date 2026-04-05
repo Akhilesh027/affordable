@@ -861,7 +861,7 @@ const Checkout = () => {
       key: keyId,
       amount: order.amount,
       currency: order.currency,
-      name: "JSGALORE",
+      name: "JSGALLOR",
       description: "Order Payment",
       order_id: order.id,
       prefill: {
