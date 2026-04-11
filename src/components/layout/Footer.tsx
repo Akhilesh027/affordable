@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Facebook, Instagram, Twitter, Mail, Phone, MapPin } from "lucide-react";
+import { Facebook, Instagram, Twitter, Mail, Phone, MapPin, Youtube } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import logo from '../../Images/JSGALORE.png'
@@ -59,14 +59,14 @@ export const Footer = () => {
               </p>
 
               <div className="flex gap-3">
-                <a href="#" className="w-9 h-9 rounded-full bg-background/10 flex items-center justify-center hover:bg-primary transition-colors">
+                <a href="https://www.facebook.com/profile.php?id=61586448690693" className="w-9 h-9 rounded-full bg-background/10 flex items-center justify-center hover:bg-primary transition-colors">
                   <Facebook className="h-4 w-4" />
                 </a>
-                <a href="#" className="w-9 h-9 rounded-full bg-background/10 flex items-center justify-center hover:bg-primary transition-colors">
+                <a href="https://www.instagram.com/jsgallor/" className="w-9 h-9 rounded-full bg-background/10 flex items-center justify-center hover:bg-primary transition-colors">
                   <Instagram className="h-4 w-4" />
                 </a>
-                <a href="#" className="w-9 h-9 rounded-full bg-background/10 flex items-center justify-center hover:bg-primary transition-colors">
-                  <Twitter className="h-4 w-4" />
+                <a href="https://www.youtube.com/@JSGALLOR" className="w-9 h-9 rounded-full bg-background/10 flex items-center justify-center hover:bg-primary transition-colors">
+                  <Youtube className="h-4 w-4" />
                 </a>
               </div>
             </div>
