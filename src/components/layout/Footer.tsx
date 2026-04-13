@@ -127,7 +127,6 @@ export const Footer = () => {
                   <Mail className="h-4 w-4 text-primary" />
                   <span className="text-muted-foreground">hello@jsgalore.com</span>
                 </li>
-
               </ul>
             </div>
 

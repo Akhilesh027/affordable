@@ -10,12 +10,15 @@ import { PhoneNumberModal } from "@/components/layout/PhoneNumberModal";
 
 const API_BASE = "https://api.jsgallor.com";
 
+// Fixed discount for affordable products (10%)
+const DISCOUNT_PERCENT = 10;
+
 type BackendProduct = {
   _id: string;
   name: string;
   category: string;
-  price: number;
-  originalPrice?: number;
+  price: number;          // treated as original price
+  originalPrice?: number; // not sent from backend
   image: string;
   quantity?: number;
   availability?: string;
@@ -32,12 +35,11 @@ type BackendCategory = {
   id: string;
   name: string;
   slug: string;
-  segment?: string;           // "all", "affordable", etc.
+  segment?: string;
   imageUrl?: string;
   productCount?: number;
   parentId?: string | null;
   status?: string;
-  // ... other fields
 };
 
 type UiCategory = {
@@ -52,8 +54,8 @@ type UiProduct = {
   id: string;
   name: string;
   category: string;
-  price: number;
-  originalPrice?: number;
+  price: number;           // discounted price
+  originalPrice?: number;  // original price (for strikethrough)
   image: string;
   inStock: boolean;
   colors: string[];
@@ -73,13 +75,17 @@ const mapProduct = (p: BackendProduct): UiProduct => {
   const availability = String(p.availability || "").toLowerCase();
   const inStock = qty > 0 || availability.includes("in stock");
 
+  // Apply fixed discount: original price = backend price, discounted price = original * (1 - discount%)
+  const originalPrice = Number(p.price || 0);
+  const discountedPrice = Math.round(originalPrice * (1 - DISCOUNT_PERCENT / 100));
+
   return {
     _id: p._id,
     id: p._id,
     name: p.name,
     category: (p.category || "other").toLowerCase(),
-    price: Number(p.price || 0),
-    originalPrice: p.originalPrice ? Number(p.originalPrice) : undefined,
+    price: discountedPrice,
+    originalPrice: originalPrice,
     image: p.image,
     inStock,
     colors: p.color ? [p.color] : [],
@@ -114,7 +120,6 @@ const Index = () => {
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error || "Failed to fetch categories");
 
-    // Extract items array from the new response structure
     const categoriesData = data?.data?.items || data?.categories || data || [];
     return categoriesData as BackendCategory[];
   };
@@ -155,7 +160,7 @@ const Index = () => {
 
         if (filteredCategories.length > 0) {
           uiCats = filteredCategories.map((c) => {
-            const id = c.slug || c.id; // use slug as id
+            const id = c.slug || c.id;
             return {
               id,
               name: c.name || normalizeCategoryName(id),
@@ -164,9 +169,6 @@ const Index = () => {
             };
           });
         } else {
-          // No suitable categories from backend – fallback to building from product categories
-          // but note: we don't have images, so we might choose to show nothing.
-          // For now, we'll show nothing (empty array).
           uiCats = [];
         }
 
@@ -230,7 +232,7 @@ const Index = () => {
                 <span className="text-gradient block">Living Space</span>
               </h1>
               <div className="inline-block px-5 py-2 bg-primary/10 text-primary rounded-lg font-semibold">
-                🎉 Get 10% off on your first order
+                🎉 Get {DISCOUNT_PERCENT}% off on your first order
               </div>
               <p className="text-lg text-muted-foreground max-w-md">
                 Discover premium furniture that combines elegance with comfort. Transform your home with our curated
@@ -269,6 +271,11 @@ const Index = () => {
                     <>
                       <p className="text-sm text-muted-foreground">Now only</p>
                       <p className="text-2xl font-bold text-foreground">₹{latestProductUi.price.toLocaleString()}</p>
+                      {latestProductUi.originalPrice && (
+                        <p className="text-xs text-muted-foreground line-through">
+                          ₹{latestProductUi.originalPrice.toLocaleString()}
+                        </p>
+                      )}
                     </>
                   ) : (
                     <>
@@ -394,7 +401,7 @@ const Index = () => {
             </div>
             <div className="relative p-8 md:p-12 flex flex-col md:flex-row items-center justify-between gap-6">
               <div>
-                <h2 className="text-2xl md:text-3xl font-bold">Get 10% Off Your First Order</h2>
+                <h2 className="text-2xl md:text-3xl font-bold">Get {DISCOUNT_PERCENT}% Off Your First Order</h2>
                 <p className="text-background/80 mt-2">
                   Sign up for our newsletter and enjoy exclusive discounts
                 </p>
