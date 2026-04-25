@@ -95,7 +95,7 @@ export const Footer = () => {
               </ul>
             </div>
 
-            {/* Contact (UPDATED ✅) */}
+            
             <div>
               <h3 className="font-semibold text-lg mb-4">Our Locations</h3>
 
