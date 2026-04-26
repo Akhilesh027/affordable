@@ -1,3 +1,4 @@
+// src/App.tsx
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -22,15 +23,26 @@ import Wishlist from "./pages/Wishlist";
 import ResetPassword from "./pages/resetpassword";
 import SearchPage from "./components/layout/SearchPage";
 
+// Legal page imports
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsConditions from "./pages/TermsConditions";
+import RefundPolicy from "./pages/RefundPolicy";
+import ShippingPolicy from "./pages/ShippingPolicy";
+import About from "./pages/About";
+import Contact from "./pages/Contact";
+import DeliveryPolicy from "./pages/DeliveryPolicy";
+import WarrantyRefund from "./pages/WarrantyRefund";
+import ReplacementPolicy from "./pages/ReplacementPolicy";
+import ShippingInfo from "./pages/ShippingInfo";
+import FAQ from "./pages/FAQ";
+
 const queryClient = new QueryClient();
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
-
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [pathname]);
-
   return null;
 };
 
@@ -38,7 +50,6 @@ const ScrollToTop = () => {
 const FloatingWhatsApp = () => {
   const whatsappNumber = "917075848516";
   const whatsappLink = `https://wa.me/${whatsappNumber}`;
-
   return (
     <a
       href={whatsappLink}
@@ -66,8 +77,9 @@ const App = () => (
             <Sonner />
             <BrowserRouter>
               <ScrollToTop />
-              <FloatingWhatsApp /> {/* Added global WhatsApp icon */}
+              <FloatingWhatsApp />
               <Routes>
+                {/* Existing routes */}
                 <Route path="/" element={<Index />} />
                 <Route path="/categories" element={<CategoriesPage />} />
                 <Route
@@ -90,9 +102,23 @@ const App = () => (
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/orders" element={<Orders />} />
                 <Route path="/search" element={<SearchPage />} />
-
                 <Route path="/wishlist" element={<Wishlist />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
+
+                {/* Legal & policy routes (static paths, no :tier) */}
+                <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                <Route path="/terms" element={<TermsConditions />} />
+                <Route path="/refund-policy" element={<RefundPolicy />} />
+                <Route path="/shipping-policy" element={<ShippingPolicy />} />
+                <Route path="/delivery-policy" element={<DeliveryPolicy />} />
+                <Route path="/warranty-refund" element={<WarrantyRefund />} />
+                <Route path="/replacement-policy" element={<ReplacementPolicy />} />
+                <Route path="/shipping-info" element={<ShippingInfo />} />
+                <Route path="/about" element={<About />} />
+                <Route path="/contact" element={<Contact />} />
+                <Route path="/faq" element={<FAQ />} />
+
+                {/* 404 catch‑all */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>

@@ -40,10 +40,10 @@ type ApiProduct = {
   name: string;
   category: string;
   description?: string;
-  price: number;               // original price
-  discount?: number;           // discount percentage (0‑100)
-  gst?: number;                // GST percentage (0‑100)
-  isCustomized?: boolean;      // whether product is customizable
+  price: number;
+  discount?: number;
+  gst?: number;
+  isCustomized?: boolean;
   originalPrice?: number;
   quantity?: number;
   availability?: string;
@@ -66,11 +66,11 @@ type UiProduct = {
   name: string;
   category: string;
   description: string;
-  price: number;               // original price
-  discount: number;            // discount percentage (0‑100)
-  gst: number;                 // GST percentage (0‑100)
-  isCustomized: boolean;       // customization flag
-  finalPrice: number;          // computed price after discount
+  price: number;
+  discount: number;
+  gst: number;
+  isCustomized: boolean;
+  finalPrice: number;
   originalPrice?: number;
   image: string;
   images: string[];
@@ -233,10 +233,8 @@ const ProductDetails = () => {
     fetchRelated();
   }, [product]);
 
-  // For variant products, find the selected variant based on attributes
   const selectedVariant = useMemo(() => {
     if (!product?.hasVariants || !product.variants) return null;
-
     return product.variants.find(v => {
       const colorMatch = !selectedColor || v.attributes.color === selectedColor;
       const sizeMatch = !selectedSize || v.attributes.size === selectedSize;
@@ -245,7 +243,6 @@ const ProductDetails = () => {
     }) || null;
   }, [product, selectedColor, selectedSize, selectedFabric]);
 
-  // Determine original price (variant or product) and final price with discount
   const originalPrice = useMemo(() => {
     if (selectedVariant) return selectedVariant.price;
     return product?.price || 0;
@@ -271,7 +268,6 @@ const ProductDetails = () => {
 
   const discountPercent = Math.round(discount);
 
-  // Collect unique option values for variant products
   const availableColors = useMemo(() => {
     if (!product?.hasVariants || !product.variants) return product?.colors || [];
     const colors = new Set<string>();
@@ -316,11 +312,9 @@ const ProductDetails = () => {
     if (selectedColor) attributes.color = selectedColor;
     if (selectedFabric) attributes.fabric = selectedFabric;
 
-    // Create a temporary product object with discounted price for cart
-    // Include gst and isCustomized for proper checkout calculations
     const cartProduct = {
       ...product,
-      price: displayPrice,        // use discounted price (final price after product discount)
+      price: displayPrice,
       originalPrice: originalPrice,
       discount,
       gst: product.gst,
@@ -347,7 +341,6 @@ const ProductDetails = () => {
       if (isWishlisted) {
         await removeFromWishlist(product._id);
       } else {
-        // Convert UiProduct to the shape expected by wishlist (Product type)
         await addToWishlist(product as any);
       }
     } catch (err) {
@@ -364,22 +357,17 @@ const ProductDetails = () => {
 
     if (navigator.share) {
       try {
-        await navigator.share({
-          title,
-          text,
-          url,
-        });
+        await navigator.share({ title, text, url });
       } catch (err) {
         if (err instanceof Error && err.name !== "AbortError") {
           toast.error("Sharing failed", { description: err.message });
         }
       }
     } else {
-      // Fallback: copy to clipboard
       try {
         await navigator.clipboard.writeText(url);
         toast.success("Link copied to clipboard!");
-      } catch (err) {
+      } catch {
         toast.error("Failed to copy link");
       }
     }
@@ -406,14 +394,40 @@ const ProductDetails = () => {
     );
   }
 
+  // ---- Helper to check if a value is meaningful for display ----
+  const isMeaningful = (value: string | number | undefined | null): boolean => {
+    if (value === undefined || value === null) return false;
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (trimmed === "" || trimmed === "—" || trimmed === "-") return false;
+      return true;
+    }
+    if (typeof value === "number") {
+      return value !== 0 && !isNaN(value);
+    }
+    return true;
+  };
+
+  // Build specifications array, then filter out empty rows
+  const allSpecs = [
+    { label: "Material", value: product.material },
+    { label: "Available Sizes", value: product.sizes?.length ? product.sizes.join(", ") : null },
+    { label: "Available Colors", value: product.colors?.length ? `${product.colors.length} color(s)` : null },
+    { label: "Available Fabrics", value: product.fabrics?.length ? product.fabrics.join(", ") : null },
+    { label: "Weight", value: product.weight },
+    { label: "Availability", value: product.inStock ? "In Stock" : "Out of Stock" },
+    { label: "GST", value: product.gst ? `${product.gst}%` : null },
+    { label: "Customizable", value: product.isCustomized ? "Yes" : null },
+  ];
+
+  const visibleSpecs = allSpecs.filter(spec => isMeaningful(spec.value));
+
   return (
     <Layout>
       <div className="container mx-auto px-4 py-6 sm:py-8">
         {/* Breadcrumb */}
         <nav className="mb-5 sm:mb-6 flex flex-wrap items-center gap-y-1 text-xs sm:text-sm text-muted-foreground">
-          <Link to="/" className="hover:text-primary">
-            Home
-          </Link>
+          <Link to="/" className="hover:text-primary">Home</Link>
           <span className="mx-2">/</span>
           <Link
             to={`/categories/${product.category.toLowerCase().replace(/\s+/g, "-")}`}
@@ -441,11 +455,7 @@ const ProductDetails = () => {
                       : "border-border hover:border-primary/50"
                   }`}
                 >
-                  <img
-                    src={img}
-                    alt={`${product.name} ${index + 1}`}
-                    className="w-full h-full object-cover"
-                  />
+                  <img src={img} alt={`${product.name} ${index + 1}`} className="w-full h-full object-cover" />
                 </button>
               ))}
             </div>
@@ -482,12 +492,9 @@ const ProductDetails = () => {
                   {formatPrice(originalPrice)}
                 </span>
               )}
-              {discount > 0 && (
-                <Badge variant="secondary">{discountPercent}% off</Badge>
-              )}
+              {discount > 0 && <Badge variant="secondary">{discountPercent}% off</Badge>}
             </div>
 
-            {/* Description with preserved line breaks */}
             <div className="text-sm sm:text-base text-muted-foreground leading-6 sm:leading-7 whitespace-pre-wrap">
               {product.description || "No description available."}
             </div>
@@ -511,9 +518,7 @@ const ProductDetails = () => {
                       style={{ backgroundColor: color }}
                       title={color}
                     >
-                      {selectedColor === color && (
-                        <Check className="absolute inset-0 m-auto h-5 w-5 text-white drop-shadow-md" />
-                      )}
+                      {selectedColor === color && <Check className="absolute inset-0 m-auto h-5 w-5 text-white drop-shadow-md" />}
                     </button>
                   ))}
                 </div>
@@ -573,11 +578,7 @@ const ProductDetails = () => {
               <h3 className="font-semibold mb-3 text-sm sm:text-base">Quantity</h3>
               <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                 <div className="flex items-center border border-border rounded-xl w-fit">
-                  <button
-                    onClick={decreaseQty}
-                    className="p-3 hover:bg-muted transition-colors rounded-l-xl"
-                    aria-label="Decrease quantity"
-                  >
+                  <button onClick={decreaseQty} className="p-3 hover:bg-muted transition-colors rounded-l-xl" aria-label="Decrease quantity">
                     <Minus className="h-4 w-4" />
                   </button>
                   <span className="w-12 text-center font-medium">{quantity}</span>
@@ -639,20 +640,11 @@ const ProductDetails = () => {
                   {isWishlistLoading ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
                   ) : (
-                    <Heart
-                      className={`h-5 w-5 ${
-                        isWishlisted ? "fill-current text-primary" : ""
-                      }`}
-                    />
+                    <Heart className={`h-5 w-5 ${isWishlisted ? "fill-current text-primary" : ""}`} />
                   )}
                 </Button>
 
-                <Button
-                  variant="outline"
-                  size="lg"
-                  className="w-full sm:w-auto"
-                  onClick={handleShare}
-                >
+                <Button variant="outline" size="lg" className="w-full sm:w-auto" onClick={handleShare}>
                   <Share2 className="h-5 w-5" />
                 </Button>
               </div>
@@ -660,34 +652,28 @@ const ProductDetails = () => {
           </div>
         </div>
 
-        {/* Specifications */}
-        <section className="mt-12 md:mt-16">
-          <h2 className="text-xl sm:text-2xl font-bold mb-5 sm:mb-6">Specifications</h2>
-
-          <div className="bg-muted/30 rounded-2xl p-4 sm:p-6 overflow-x-auto">
-            <table className="w-full min-w-[520px] sm:min-w-full">
-              <tbody className="divide-y divide-border">
-                {[
-                  ["Material", product.material || "—"],
-                  ["Available Sizes", product.sizes?.join(", ") || "—"],
-                  ["Available Colors", product.colors?.length ? `${product.colors.length} color(s)` : "—"],
-                  ["Available Fabrics", product.fabrics?.join(", ") || "—"],
-                  ["Weight", product.weight || "—"],
-                  ["Availability", product.inStock ? "In Stock" : "Out of Stock"],
-                  ["GST", product.gst ? `${product.gst}%` : "—"],
-                  ["Customizable", product.isCustomized ? "Yes" : "No"],
-                ].map(([label, value], index) => (
-                  <tr key={index}>
-                    <td className="py-3 pr-4 font-medium text-foreground w-[40%] sm:w-1/3">
-                      {label}
-                    </td>
-                    <td className="py-3 text-muted-foreground break-words">{value}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+        {/* Specifications – only if any meaningful spec exists */}
+        {visibleSpecs.length > 0 && (
+          <section className="mt-12 md:mt-16">
+            <h2 className="text-xl sm:text-2xl font-bold mb-5 sm:mb-6">Specifications</h2>
+            <div className="bg-muted/30 rounded-2xl p-4 sm:p-6 overflow-x-auto">
+              <table className="w-full min-w-[520px] sm:min-w-full">
+                <tbody className="divide-y divide-border">
+                  {visibleSpecs.map(({ label, value }, index) => (
+                    <tr key={index}>
+                      <td className="py-3 pr-4 font-medium text-foreground w-[40%] sm:w-1/3">
+                        {label}
+                      </td>
+                      <td className="py-3 text-muted-foreground break-words">
+                        {typeof value === "string" ? value : String(value)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
 
         {/* Related Products */}
         {relatedProducts.length > 0 && (

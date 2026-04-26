@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { Facebook, Instagram, Twitter, Mail, Phone, MapPin, Youtube } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import logo from '../../Images/JSGALORE.png'
+import logo from '../../Images/JSGALORE.png';
 
 export const Footer = () => {
   return (
@@ -53,25 +53,24 @@ export const Footer = () => {
                 Premium furniture for modern living. Quality craftsmanship meets contemporary design.
               </p>
 
-              {/* 🔥 Added line */}
               <p className="text-sm text-primary font-medium mb-4">
                 We deal with premium and trusted manufacturers only.
               </p>
 
               <div className="flex gap-3">
-                <a href="https://www.facebook.com/profile.php?id=61586448690693" className="w-9 h-9 rounded-full bg-background/10 flex items-center justify-center hover:bg-primary transition-colors">
+                <a href="https://www.facebook.com/profile.php?id=61586448690693" target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-background/10 flex items-center justify-center hover:bg-primary transition-colors">
                   <Facebook className="h-4 w-4" />
                 </a>
-                <a href="https://www.instagram.com/jsgallor/" className="w-9 h-9 rounded-full bg-background/10 flex items-center justify-center hover:bg-primary transition-colors">
+                <a href="https://www.instagram.com/jsgallor/" target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-background/10 flex items-center justify-center hover:bg-primary transition-colors">
                   <Instagram className="h-4 w-4" />
                 </a>
-                <a href="https://www.youtube.com/@JSGALLOR" className="w-9 h-9 rounded-full bg-background/10 flex items-center justify-center hover:bg-primary transition-colors">
+                <a href="https://www.youtube.com/@JSGALLOR" target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-background/10 flex items-center justify-center hover:bg-primary transition-colors">
                   <Youtube className="h-4 w-4" />
                 </a>
               </div>
             </div>
 
-            {/* Quick Links */}
+            {/* Quick Links – Categories */}
             <div>
               <h3 className="font-semibold text-lg mb-4">Quick Links</h3>
               <ul className="space-y-2">
@@ -83,46 +82,43 @@ export const Footer = () => {
               </ul>
             </div>
 
-            {/* Customer Service */}
+            {/* Support & Policies (all legal + about) */}
             <div>
-              <h3 className="font-semibold text-lg mb-4">Customer Service</h3>
+              <h3 className="font-semibold text-lg mb-4">Support & Policies</h3>
               <ul className="space-y-2">
-                <li><Link to="/orders" className="text-muted-foreground hover:text-primary text-sm">Track Order</Link></li>
-                <li><a href="#" className="text-muted-foreground hover:text-primary text-sm">Only Replacement Policy</a></li>
-                <li><a href="#" className="text-muted-foreground hover:text-primary text-sm">Shipping Info</a></li>
-                <li><a href="#" className="text-muted-foreground hover:text-primary text-sm">FAQ</a></li>
-                <li><a href="#" className="text-muted-foreground hover:text-primary text-sm">Contact Us</a></li>
+                <li><Link to="/about" className="text-muted-foreground hover:text-primary text-sm">About Us</Link></li>
+                <li><Link to="/faq" className="text-muted-foreground hover:text-primary text-sm">FAQ</Link></li>
+                <li><Link to="/contact" className="text-muted-foreground hover:text-primary text-sm">Contact Us</Link></li>
+                <li><Link to="/shipping-info" className="text-muted-foreground hover:text-primary text-sm">Shipping Info</Link></li>
+                <li><Link to="/delivery-policy" className="text-muted-foreground hover:text-primary text-sm">Delivery Policy</Link></li>
+                <li><Link to="/warranty-refund" className="text-muted-foreground hover:text-primary text-sm">Warranty & Refund</Link></li>
+                <li><Link to="/replacement-policy" className="text-muted-foreground hover:text-primary text-sm">Replacement Policy</Link></li>
+                <li><Link to="/privacy-policy" className="text-muted-foreground hover:text-primary text-sm">Privacy Policy</Link></li>
+                <li><Link to="/terms" className="text-muted-foreground hover:text-primary text-sm">Terms of Service</Link></li>
               </ul>
             </div>
 
-            
+            {/* Locations & Contact */}
             <div>
               <h3 className="font-semibold text-lg mb-4">Our Locations</h3>
-
               <ul className="space-y-4 text-sm">
-
-               {/* Location 1 */}
-<li className="flex items-start gap-3">
-  <MapPin className="h-4 w-4 text-primary mt-1" />
-  <span className="text-white">
-    WorkFlo Bizness Square, 4th Floor, H No 1-98/3/5/23 to 27,  
-    Jubilee Enclave, Madhapur, RR District, Telangana – 500081
-  </span>
-</li>
-
-{/* Location 2 */}
-<li className="flex items-start gap-3">
-  <MapPin className="h-4 w-4 text-primary mt-1" />
-  <span className="text-white">
-    Uppal, Hyderabad, Telangana – 500039
-  </span>
-</li>
-
+                <li className="flex items-start gap-3">
+                  <MapPin className="h-4 w-4 text-primary mt-1" />
+                  <span className="text-white">
+                    WorkFlo Bizness Square, 4th Floor, H No 1-98/3/5/23 to 27,  
+                    Jubilee Enclave, Madhapur, RR District, Telangana – 500081
+                  </span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <MapPin className="h-4 w-4 text-primary mt-1" />
+                  <span className="text-white">
+                    Uppal, Hyderabad, Telangana – 500039
+                  </span>
+                </li>
                 <li className="flex items-center gap-3">
                   <Phone className="h-4 w-4 text-primary" />
                   <span className="text-muted-foreground">+91 7075848516</span>
                 </li>
-
                 <li className="flex items-center gap-3">
                   <Mail className="h-4 w-4 text-primary" />
                   <span className="text-muted-foreground">hello@jsgalore.com</span>
@@ -134,13 +130,15 @@ export const Footer = () => {
         </div>
       </div>
 
-      {/* Bottom */}
+      {/* Bottom – quick policy links again */}
       <div className="border-t border-background/10 py-4">
-        <div className="container mx-auto px-4 flex flex-col md:flex-row justify-between text-sm text-muted-foreground">
+        <div className="container mx-auto px-4 flex flex-col md:flex-row justify-between text-sm text-muted-foreground gap-2">
           <p>© 2026 JSGALORE. All rights reserved.</p>
-          <div className="flex gap-4">
-            <a href="#" className="hover:text-primary">Privacy Policy</a>
-            <a href="#" className="hover:text-primary">Terms of Service</a>
+          <div className="flex flex-wrap gap-4 justify-center">
+            <Link to="/privacy-policy" className="hover:text-primary">Privacy Policy</Link>
+            <Link to="/terms" className="hover:text-primary">Terms of Service</Link>
+            <Link to="/delivery-policy" className="hover:text-primary">Delivery Policy</Link>
+            <Link to="/warranty-refund" className="hover:text-primary">Warranty & Refund</Link>
           </div>
         </div>
       </div>

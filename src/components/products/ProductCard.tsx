@@ -13,20 +13,34 @@ interface ProductCardProps {
 }
 
 export const ProductCard = ({ product }: ProductCardProps) => {
-  const { addToCart } = useCart();
+  const { addItem } = useCart();               // ✅ fixed: use addItem, not addToCart
   const { addToWishlist, removeFromWishlist, isInWishlist, loading: wishlistLoading } = useWishlist();
   const [isToggling, setIsToggling] = useState(false);
-  
-  const discount = product.originalPrice
-    ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
-    : 0;
 
+  const discount = product.discountPercent || 0;
   const isWishlisted = isInWishlist(product._id);
   const isLoading = wishlistLoading || isToggling;
 
+  const handleAddToCart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    addItem({
+      id: product._id,
+      name: product.name,
+      price: product.price,
+      originalPrice: product.originalPrice || product.price,
+      discountPercent: product.discountPercent || 0,
+      gst: 0, // you may adjust this if you have GST info
+      isCustomized: false,
+      image: product.image || "",
+      variantId: null,
+      attributes: {},
+    }, 1);
+  };
+
   const handleWishlistToggle = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isLoading) return; // prevent double clicks
+    if (isLoading) return;
 
     setIsToggling(true);
     try {
@@ -36,7 +50,6 @@ export const ProductCard = ({ product }: ProductCardProps) => {
         await addToWishlist(product);
       }
     } catch (err) {
-      // Optionally show a toast notification
       console.error("Wishlist operation failed:", err);
     } finally {
       setIsToggling(false);
@@ -89,8 +102,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           )}
         </button>
 
-        {/* Quick add to cart */}
-       
+      
       </div>
 
       {/* Content */}
@@ -104,14 +116,14 @@ export const ProductCard = ({ product }: ProductCardProps) => {
         {/* Rating */}
         <div className="flex items-center gap-1 mt-1">
           <Star className="h-4 w-4 fill-primary text-primary" />
-          <span className="text-sm font-medium">{product.rating}</span>
-          <span className="text-xs text-muted-foreground">({product.reviews} reviews)</span>
+          <span className="text-sm font-medium">{product.rating || 0}</span>
+          <span className="text-xs text-muted-foreground">({product.reviews || 0} reviews)</span>
         </div>
 
-        {/* Price */}
+        {/* Price with strikethrough for original */}
         <div className="flex items-baseline gap-2 mt-2">
           <span className="text-lg font-bold text-foreground">{formatPrice(product.price)}</span>
-          {product.originalPrice && (
+          {product.originalPrice && product.originalPrice > product.price && (
             <span className="text-sm text-muted-foreground line-through">
               {formatPrice(product.originalPrice)}
             </span>

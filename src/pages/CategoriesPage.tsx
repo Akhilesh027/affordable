@@ -1,4 +1,3 @@
-// src/pages/CategoriesPage.tsx
 import { useParams, Link, useSearchParams, useNavigate } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
 import { ProductGrid } from "@/components/products/ProductGrid";
@@ -15,6 +14,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { Product } from "@/types";
 
 const API_PRODUCTS = "https://api.jsgallor.com/api/affordable";
 const API_ADMIN = "https://api.jsgallor.com/api/admin";
@@ -23,22 +23,12 @@ type ApiProduct = {
   _id: string;
   name: string;
   price: number;
+  discount?: number;
   category: string;
   subcategory?: string;
   image?: string;
   availability?: string;
   quantity?: number;
-  color?: string;
-};
-
-type Product = {
-  _id: string;
-  name: string;
-  price: number;
-  category: string;
-  subcategory?: string;
-  inStock: boolean;
-  image?: string;
   color?: string;
 };
 
@@ -77,7 +67,7 @@ export default function CategoriesPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Fetch categories (affordable + all)
+  // Fetch categories
   useEffect(() => {
     const fetchCategories = async () => {
       try {
@@ -156,7 +146,7 @@ export default function CategoriesPage() {
     return childrenOfParent.find((c) => c.slug === safeSubSlug) || null;
   }, [childrenOfParent, safeSubSlug]);
 
-  // Fetch products based on category/subcategory + tier (server‑side)
+  // Fetch products with discount calculation
   useEffect(() => {
     const fetchProducts = async () => {
       try {
@@ -182,16 +172,27 @@ export default function CategoriesPage() {
         const mapped: Product[] = arr.map((p) => {
           const qty = Number(p.quantity ?? 0);
           const avail = String(p.availability ?? "").toLowerCase();
+          const price = Number(p.price) || 0;
+          const discountPercent = Number(p.discount) || 0;
+
+          // Calculate original price: price = original * (100 - discount)/100
+          let originalPrice = price;
+          if (discountPercent > 0) {
+            originalPrice = Math.round(price * 100 / (100 - discountPercent));
+          }
+
           return {
             _id: p._id,
             name: p.name,
-            price: Number(p.price) || 0,
+            price,
+            originalPrice,
+            discountPercent,
             category: p.category,
             subcategory: p.subcategory,
             image: p.image,
             inStock: qty > 0 && avail !== "out of stock",
             color: p.color,
-          };
+          } as Product;
         });
 
         setProducts(mapped);
@@ -206,21 +207,18 @@ export default function CategoriesPage() {
     fetchProducts();
   }, [categoryId, safeSubSlug, showAll]);
 
-  // Update price range limits based on fetched products
   const minMaxPrice = useMemo(() => {
     const prices = products.map((p) => p.price);
     if (prices.length === 0) return [0, 100000];
     return [Math.min(...prices), Math.max(...prices)];
   }, [products]);
 
-  // Reset price range when products change
   useEffect(() => {
     if (products.length) {
       setPriceRange([minMaxPrice[0], minMaxPrice[1]]);
     }
   }, [minMaxPrice]);
 
-  // Available colors from products (for dropdown) - FIXED: ensure strings
   const availableColors = useMemo(() => {
     const colorSet = new Set<string>();
     products.forEach((p) => {
@@ -232,7 +230,6 @@ export default function CategoriesPage() {
     return Array.from(colorSet).sort();
   }, [products]);
 
-  // Client‑side filters: search, price, color, stock
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
       const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -243,7 +240,6 @@ export default function CategoriesPage() {
     });
   }, [products, searchTerm, priceRange, selectedColor, inStockOnly]);
 
-  // Navigation helpers for dropdowns
   const handleParentChange = (slug: string) => {
     if (!slug) {
       navigate(`/categories${showAll ? "?tier=all" : ""}`);
@@ -266,10 +262,8 @@ export default function CategoriesPage() {
     return "All Products";
   }, [selectedParent, selectedChild]);
 
-  // Filter content component (used in both desktop sidebar and mobile sheet)
   const FilterContent = () => (
     <div className="space-y-6">
-      {/* Search */}
       <div>
         <h4 className="font-semibold mb-3 flex items-center gap-2">
           <Search className="h-4 w-4" />
@@ -284,7 +278,6 @@ export default function CategoriesPage() {
         />
       </div>
 
-      {/* Category Dropdown */}
       <div>
         <h4 className="font-semibold mb-3">Category</h4>
         <select
@@ -302,7 +295,6 @@ export default function CategoriesPage() {
         </select>
       </div>
 
-      {/* Subcategory Dropdown (only if parent selected) */}
       {selectedParent && (
         <div>
           <h4 className="font-semibold mb-3">Subcategory</h4>
@@ -322,7 +314,6 @@ export default function CategoriesPage() {
         </div>
       )}
 
-      {/* Price Range */}
       <div>
         <h4 className="font-semibold mb-3 flex items-center gap-2">
           <SlidersHorizontal className="h-4 w-4" />
@@ -342,7 +333,6 @@ export default function CategoriesPage() {
         </div>
       </div>
 
-      {/* Color Dropdown - FIXED: safe rendering */}
       {availableColors.length > 0 && (
         <div>
           <h4 className="font-semibold mb-3">Color</h4>
@@ -361,7 +351,6 @@ export default function CategoriesPage() {
         </div>
       )}
 
-      {/* Availability */}
       <div>
         <h4 className="font-semibold mb-3">Availability</h4>
         <label className="flex items-center gap-2 cursor-pointer">
@@ -378,7 +367,6 @@ export default function CategoriesPage() {
   return (
     <Layout>
       <div className="container mx-auto px-4 py-8">
-        {/* Breadcrumb */}
         <nav className="text-sm text-muted-foreground mb-6">
           <Link to="/" className="hover:text-primary">Home</Link>
           <span className="mx-2">/</span>
@@ -404,7 +392,6 @@ export default function CategoriesPage() {
           )}
         </nav>
 
-        {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>
             <h1 className="text-3xl font-bold text-foreground">{pageTitle}</h1>
@@ -431,7 +418,6 @@ export default function CategoriesPage() {
         </div>
 
         <div className="flex gap-8">
-          {/* Desktop Sidebar */}
           <aside className="hidden md:block w-64 shrink-0">
             <div className="sticky top-24 glass-card p-6">
               <h3 className="font-bold text-lg mb-6 flex items-center gap-2">
@@ -442,7 +428,6 @@ export default function CategoriesPage() {
             </div>
           </aside>
 
-          {/* Products Grid */}
           <div className="flex-1">
             {error ? (
               <div className="text-center py-16">
@@ -453,7 +438,7 @@ export default function CategoriesPage() {
                 <p className="text-lg text-muted-foreground">Loading products...</p>
               </div>
             ) : filteredProducts.length > 0 ? (
-              <ProductGrid products={filteredProducts as any} />
+              <ProductGrid products={filteredProducts} />
             ) : (
               <div className="text-center py-16">
                 <p className="text-lg text-muted-foreground">No products found</p>
