@@ -264,19 +264,7 @@ export default function CategoriesPage() {
 
   const FilterContent = () => (
     <div className="space-y-6">
-      <div>
-        <h4 className="font-semibold mb-3 flex items-center gap-2">
-          <Search className="h-4 w-4" />
-          Search
-        </h4>
-        <Input
-          type="text"
-          placeholder="Search products..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full"
-        />
-      </div>
+   
 
       <div>
         <h4 className="font-semibold mb-3">Category</h4>

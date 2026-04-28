@@ -1,13 +1,41 @@
 import { Link } from "react-router-dom";
-import { Facebook, Instagram, Twitter, Mail, Phone, MapPin, Youtube } from "lucide-react";
+import { Facebook, Instagram, Twitter, Mail, Phone, MapPin, Youtube, ArrowRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import logo from '../../Images/JSGALORE.png';
 
 export const Footer = () => {
   return (
+    <>
+        <section className="py-12 md:py-16">
+            <div className="container mx-auto px-4">
+              <div className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-foreground to-foreground/90 text-background">
+                <div className="absolute inset-0 opacity-20">
+                  <img
+                    src="https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?w=1200&h=400&fit=crop"
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="relative p-8 md:p-12 flex flex-col md:flex-row items-center justify-between gap-6">
+                  <div>
+                    <h2 className="text-2xl md:text-3xl font-bold">Get 10% Off Your First Order</h2>
+                    <p className="text-background/80 mt-2">
+                      Sign up for our newsletter and enjoy exclusive discounts
+                    </p>
+                  </div>
+                  <Link to="/signup">
+                    <Button variant="amber" size="lg">
+                      Sign Up Now
+                      <ArrowRight className="h-5 w-5 ml-2" />
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </section>
     <footer className="bg-foreground text-background">
-      
+        
       {/* Newsletter */}
       <div className="bg-primary py-8">
         <div className="container mx-auto px-4">
@@ -143,5 +171,6 @@ export const Footer = () => {
         </div>
       </div>
     </footer>
+    </>
   );
 };
