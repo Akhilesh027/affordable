@@ -11,7 +11,6 @@ import { PhoneNumberModal } from "@/components/layout/PhoneNumberModal";
 const API_BASE = "https://api.jsgallor.com";
 
 // Fixed discount for affordable products (10%)
-const DISCOUNT_PERCENT = 10;
 
 type BackendProduct = {
   _id: string;
@@ -75,17 +74,23 @@ const mapProduct = (p: BackendProduct): UiProduct => {
   const availability = String(p.availability || "").toLowerCase();
   const inStock = qty > 0 || availability.includes("in stock");
 
-  // Apply fixed discount: original price = backend price, discounted price = original * (1 - discount%)
   const originalPrice = Number(p.price || 0);
-  const discountedPrice = Math.round(originalPrice * (1 - DISCOUNT_PERCENT / 100));
+
+  // ✅ use backend discount
+  const discount = Number((p as any).discount ?? 0);
+
+  const discountedPrice =
+    discount > 0
+      ? Math.round(originalPrice * (1 - discount / 100))
+      : originalPrice;
 
   return {
     _id: p._id,
     id: p._id,
     name: p.name,
     category: (p.category || "other").toLowerCase(),
-    price: discountedPrice,
-    originalPrice: originalPrice,
+    price: discountedPrice,          // ✅ final price
+    originalPrice: originalPrice,    // ✅ for strike
     image: p.image,
     inStock,
     colors: p.color ? [p.color] : [],
@@ -94,7 +99,6 @@ const mapProduct = (p: BackendProduct): UiProduct => {
     tags: p.tags ?? [],
   };
 };
-
 const Index = () => {
   const { user, isAuthenticated } = useAuth();
   const [showPhoneModal, setShowPhoneModal] = useState(false);
@@ -232,7 +236,7 @@ const Index = () => {
                 <span className="text-gradient block">Living Space</span>
               </h1>
               <div className="inline-block px-5 py-2 bg-primary/10 text-primary rounded-lg font-semibold">
-                🎉 Get {DISCOUNT_PERCENT}% off on your first order
+                🎉 Get 10% off on your first order
               </div>
               <p className="text-lg text-muted-foreground max-w-md">
                 Discover premium furniture that combines elegance with comfort. Transform your home with our curated

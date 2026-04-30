@@ -20,7 +20,6 @@ import { toast } from "sonner";
 
 const API_BASE = "https://api.jsgallor.com/api/affordable";
 
-// Extended API types to include variants, discount, gst, isCustomized
 type ApiVariant = {
   _id?: string;
   attributes: {
@@ -43,6 +42,7 @@ type ApiProduct = {
   price: number;
   discount?: number;
   gst?: number;
+  priceIncludesGst?: boolean;
   isCustomized?: boolean;
   originalPrice?: number;
   quantity?: number;
@@ -69,9 +69,10 @@ type UiProduct = {
   price: number;
   discount: number;
   gst: number;
+  priceIncludesGst: boolean;
   isCustomized: boolean;
   finalPrice: number;
-  originalPrice?: number;
+  originalPrice: number;
   image: string;
   images: string[];
   inStock: boolean;
@@ -102,23 +103,21 @@ const mapApiProductToUi = (p: ApiProduct): UiProduct => {
 
   let fabrics: string[] = [];
   if (Array.isArray(p.fabricTypes)) fabrics = p.fabricTypes.filter(Boolean);
-  else if (typeof p.fabricTypes === "string" && p.fabricTypes) fabrics = [p.fabricTypes];
 
-  const hasVariants = p.hasVariants && Array.isArray(p.variants) && p.variants.length > 0;
+  const hasVariants =
+    Boolean(p.hasVariants) && Array.isArray(p.variants) && p.variants.length > 0;
 
-  let totalQty = 0;
-  if (hasVariants && p.variants) {
-    totalQty = p.variants.reduce((sum, v) => sum + (v.quantity || 0), 0);
-  } else {
-    totalQty = Number(p.quantity ?? 0);
-  }
+  const totalQty = hasVariants
+    ? p.variants!.reduce((sum, v) => sum + Number(v.quantity || 0), 0)
+    : Number(p.quantity ?? 0);
 
   const availability = String(p.availability || "").toLowerCase();
   const inStock = totalQty > 0 && (availability.includes("in stock") || availability === "");
 
-  const discount = p.discount ?? 0;
-  const originalPrice = p.price;
-  const finalPrice = originalPrice * (1 - discount / 100);
+  const originalPrice = Number(p.price || 0);
+  const discount = Number(p.discount || 0);
+  const finalPrice =
+    discount > 0 ? Math.round(originalPrice * (1 - discount / 100)) : originalPrice;
 
   return {
     id: p._id,
@@ -128,10 +127,11 @@ const mapApiProductToUi = (p: ApiProduct): UiProduct => {
     description: p.description || "",
     price: originalPrice,
     discount,
-    gst: p.gst ?? 0,
+    gst: Number(p.gst || 0),
+    priceIncludesGst: p.priceIncludesGst ?? true,
     isCustomized: p.isCustomized ?? false,
     finalPrice,
-    originalPrice: p.originalPrice,
+    originalPrice,
     image: p.image,
     images,
     inStock,
@@ -185,7 +185,6 @@ const ProductDetails = () => {
         const uiProduct = mapApiProductToUi(data);
         setProduct(uiProduct);
 
-        // Auto-select first available options
         if (uiProduct.hasVariants && uiProduct.variants) {
           const firstVariant = uiProduct.variants[0];
           if (firstVariant) {
@@ -235,22 +234,47 @@ const ProductDetails = () => {
 
   const selectedVariant = useMemo(() => {
     if (!product?.hasVariants || !product.variants) return null;
-    return product.variants.find(v => {
-      const colorMatch = !selectedColor || v.attributes.color === selectedColor;
-      const sizeMatch = !selectedSize || v.attributes.size === selectedSize;
-      const fabricMatch = !selectedFabric || v.attributes.fabric === selectedFabric;
-      return colorMatch && sizeMatch && fabricMatch;
-    }) || null;
+
+    return (
+      product.variants.find((v) => {
+        const colorMatch = !selectedColor || v.attributes.color === selectedColor;
+        const sizeMatch = !selectedSize || v.attributes.size === selectedSize;
+        const fabricMatch = !selectedFabric || v.attributes.fabric === selectedFabric;
+        return colorMatch && sizeMatch && fabricMatch;
+      }) || null
+    );
   }, [product, selectedColor, selectedSize, selectedFabric]);
 
   const originalPrice = useMemo(() => {
-    if (selectedVariant) return selectedVariant.price;
+    if (selectedVariant) return Number(selectedVariant.price || 0);
     return product?.price || 0;
   }, [product, selectedVariant]);
 
   const discount = product?.discount ?? 0;
-  const finalPrice = originalPrice * (1 - discount / 100);
-  const displayPrice = finalPrice;
+  const displayPrice =
+    discount > 0 ? Math.round(originalPrice * (1 - discount / 100)) : originalPrice;
+
+  const gstAmount = useMemo(() => {
+    const gst = Number(product?.gst || 0);
+    if (!gst || !displayPrice) return 0;
+
+    if (product?.priceIncludesGst ?? true) {
+      return displayPrice - displayPrice / (1 + gst / 100);
+    }
+
+    return displayPrice * (gst / 100);
+  }, [displayPrice, product]);
+
+  const taxableValue = useMemo(() => {
+    if (!product?.gst) return displayPrice;
+
+    if (product.priceIncludesGst ?? true) {
+      return displayPrice - gstAmount;
+    }
+
+    return displayPrice;
+  }, [displayPrice, gstAmount, product]);
+
   const displayStock = useMemo(() => {
     if (selectedVariant) return selectedVariant.quantity;
     return product?.quantity || 0;
@@ -271,7 +295,7 @@ const ProductDetails = () => {
   const availableColors = useMemo(() => {
     if (!product?.hasVariants || !product.variants) return product?.colors || [];
     const colors = new Set<string>();
-    product.variants.forEach(v => {
+    product.variants.forEach((v) => {
       if (v.attributes.color) colors.add(v.attributes.color);
     });
     return Array.from(colors);
@@ -280,7 +304,7 @@ const ProductDetails = () => {
   const availableSizes = useMemo(() => {
     if (!product?.hasVariants || !product.variants) return product?.sizes || [];
     const sizes = new Set<string>();
-    product.variants.forEach(v => {
+    product.variants.forEach((v) => {
       if (v.attributes.size) sizes.add(v.attributes.size);
     });
     return Array.from(sizes);
@@ -289,7 +313,7 @@ const ProductDetails = () => {
   const availableFabrics = useMemo(() => {
     if (!product?.hasVariants || !product.variants) return product?.fabrics || [];
     const fabrics = new Set<string>();
-    product.variants.forEach(v => {
+    product.variants.forEach((v) => {
       if (v.attributes.fabric) fabrics.add(v.attributes.fabric);
     });
     return Array.from(fabrics);
@@ -315,18 +339,14 @@ const ProductDetails = () => {
     const cartProduct = {
       ...product,
       price: displayPrice,
-      originalPrice: originalPrice,
-      discount,
+      originalPrice,
+      discountPercent: discount,
       gst: product.gst,
+      priceIncludesGst: product.priceIncludesGst,
       isCustomized: product.isCustomized,
     };
 
-    addToCart(
-      cartProduct,
-      quantity,
-      selectedVariant || undefined,
-      attributes
-    );
+    addToCart(cartProduct, quantity, selectedVariant || undefined, attributes);
   };
 
   const isWishlisted = product ? isInWishlist(product._id) : false;
@@ -387,28 +407,25 @@ const ProductDetails = () => {
     return (
       <Layout>
         <div className="container mx-auto px-4 py-12 sm:py-16 text-center">
-          <h1 className="text-xl sm:text-2xl font-bold mb-4">{error || "Product not found"}</h1>
+          <h1 className="text-xl sm:text-2xl font-bold mb-4">
+            {error || "Product not found"}
+          </h1>
           <Button onClick={() => navigate("/")}>Go Home</Button>
         </div>
       </Layout>
     );
   }
 
-  // ---- Helper to check if a value is meaningful for display ----
   const isMeaningful = (value: string | number | undefined | null): boolean => {
     if (value === undefined || value === null) return false;
     if (typeof value === "string") {
       const trimmed = value.trim();
-      if (trimmed === "" || trimmed === "—" || trimmed === "-") return false;
-      return true;
+      return !(trimmed === "" || trimmed === "—" || trimmed === "-");
     }
-    if (typeof value === "number") {
-      return value !== 0 && !isNaN(value);
-    }
+    if (typeof value === "number") return value !== 0 && !isNaN(value);
     return true;
   };
 
-  // Build specifications array, then filter out empty rows
   const allSpecs = [
     { label: "Material", value: product.material },
     { label: "Available Sizes", value: product.sizes?.length ? product.sizes.join(", ") : null },
@@ -416,16 +433,15 @@ const ProductDetails = () => {
     { label: "Available Fabrics", value: product.fabrics?.length ? product.fabrics.join(", ") : null },
     { label: "Weight", value: product.weight },
     { label: "Availability", value: product.inStock ? "In Stock" : "Out of Stock" },
-    { label: "GST", value: product.gst ? `${product.gst}%` : null },
+    { label: "GST", value: product.gst ? `${product.gst}% ${product.priceIncludesGst ? "Included" : "Excluded"}` : null },
     { label: "Customizable", value: product.isCustomized ? "Yes" : null },
   ];
 
-  const visibleSpecs = allSpecs.filter(spec => isMeaningful(spec.value));
+  const visibleSpecs = allSpecs.filter((spec) => isMeaningful(spec.value));
 
   return (
     <Layout>
       <div className="container mx-auto px-4 py-6 sm:py-8">
-        {/* Breadcrumb */}
         <nav className="mb-5 sm:mb-6 flex flex-wrap items-center gap-y-1 text-xs sm:text-sm text-muted-foreground">
           <Link to="/" className="hover:text-primary">Home</Link>
           <span className="mx-2">/</span>
@@ -439,20 +455,15 @@ const ProductDetails = () => {
           <span className="text-foreground break-words">{product.name}</span>
         </nav>
 
-        {/* Product Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
-          {/* Gallery */}
           <div className="flex flex-col-reverse sm:flex-row gap-4">
-            {/* Thumbnails */}
             <div className="flex sm:flex-col gap-3 overflow-x-auto sm:overflow-visible pb-1 sm:pb-0">
               {product.images.map((img, index) => (
                 <button
                   key={index}
                   onClick={() => setSelectedImage(index)}
                   className={`shrink-0 w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden border-2 transition-all ${
-                    selectedImage === index
-                      ? "border-primary"
-                      : "border-border hover:border-primary/50"
+                    selectedImage === index ? "border-primary" : "border-border hover:border-primary/50"
                   }`}
                 >
                   <img src={img} alt={`${product.name} ${index + 1}`} className="w-full h-full object-cover" />
@@ -460,7 +471,6 @@ const ProductDetails = () => {
               ))}
             </div>
 
-            {/* Main Image */}
             <div className="flex-1 relative rounded-2xl overflow-hidden group">
               <img
                 src={displayImage}
@@ -475,31 +485,44 @@ const ProductDetails = () => {
             </div>
           </div>
 
-          {/* Details */}
           <div className="space-y-5 sm:space-y-6">
-            <div>
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-foreground leading-tight">
-                {product.name}
-              </h1>
-            </div>
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-foreground leading-tight">
+              {product.name}
+            </h1>
 
-            <div className="flex flex-wrap items-baseline gap-2 sm:gap-3">
-              <span className="text-2xl sm:text-3xl font-bold text-foreground">
-                {formatPrice(displayPrice)}
-              </span>
-              {discount > 0 && (
-                <span className="text-base sm:text-xl text-muted-foreground line-through">
-                  {formatPrice(originalPrice)}
+            <div>
+              <div className="flex flex-wrap items-baseline gap-2 sm:gap-3">
+                {discount > 0 && (
+                  <span className="text-base sm:text-xl text-muted-foreground line-through">
+                    {formatPrice(originalPrice)}
+                  </span>
+                )}
+
+                <span className="text-2xl sm:text-3xl font-bold text-foreground">
+                  {formatPrice(displayPrice)}
                 </span>
+
+                {discount > 0 && <Badge variant="secondary">{discountPercent}% off</Badge>}
+              </div>
+
+              {product.gst > 0 && (
+                <div className="mt-2 text-xs sm:text-sm text-muted-foreground space-y-1">
+                  <p>
+                    {product.priceIncludesGst
+                      ? `Inclusive of ${product.gst}% GST`
+                      : `Exclusive of ${product.gst}% GST`}
+                  </p>
+                  <p>
+                    Taxable Value: {formatPrice(taxableValue)} | GST: {formatPrice(gstAmount)}
+                  </p>
+                </div>
               )}
-              {discount > 0 && <Badge variant="secondary">{discountPercent}% off</Badge>}
             </div>
 
             <div className="text-sm sm:text-base text-muted-foreground leading-6 sm:leading-7 whitespace-pre-wrap">
               {product.description || "No description available."}
             </div>
 
-            {/* Color Selection */}
             {availableColors.length > 0 && (
               <div>
                 <h3 className="font-semibold mb-3 text-sm sm:text-base">
@@ -518,14 +541,15 @@ const ProductDetails = () => {
                       style={{ backgroundColor: color }}
                       title={color}
                     >
-                      {selectedColor === color && <Check className="absolute inset-0 m-auto h-5 w-5 text-white drop-shadow-md" />}
+                      {selectedColor === color && (
+                        <Check className="absolute inset-0 m-auto h-5 w-5 text-white drop-shadow-md" />
+                      )}
                     </button>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Size Selection */}
             {availableSizes.length > 0 && (
               <div>
                 <h3 className="font-semibold mb-3 text-sm sm:text-base">
@@ -549,7 +573,6 @@ const ProductDetails = () => {
               </div>
             )}
 
-            {/* Fabric Selection */}
             {availableFabrics.length > 0 && (
               <div>
                 <h3 className="font-semibold mb-3 text-sm sm:text-base">
@@ -573,12 +596,11 @@ const ProductDetails = () => {
               </div>
             )}
 
-            {/* Quantity */}
             <div>
               <h3 className="font-semibold mb-3 text-sm sm:text-base">Quantity</h3>
               <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                 <div className="flex items-center border border-border rounded-xl w-fit">
-                  <button onClick={decreaseQty} className="p-3 hover:bg-muted transition-colors rounded-l-xl" aria-label="Decrease quantity">
+                  <button onClick={decreaseQty} className="p-3 hover:bg-muted transition-colors rounded-l-xl">
                     <Minus className="h-4 w-4" />
                   </button>
                   <span className="w-12 text-center font-medium">{quantity}</span>
@@ -586,7 +608,6 @@ const ProductDetails = () => {
                     onClick={increaseQty}
                     className="p-3 hover:bg-muted transition-colors rounded-r-xl disabled:opacity-50"
                     disabled={!inStock || quantity >= displayStock}
-                    aria-label="Increase quantity"
                   >
                     <Plus className="h-4 w-4" />
                   </button>
@@ -597,7 +618,6 @@ const ProductDetails = () => {
               </div>
             </div>
 
-            {/* Customizable Product Button */}
             {product.isCustomized && (
               <div className="pt-1">
                 <Button
@@ -605,18 +625,14 @@ const ProductDetails = () => {
                   className="w-full sm:w-auto border-primary text-primary hover:bg-primary/10"
                   onClick={() => {
                     const message = `Hi, I'm interested in customizing this product:%0A%0A*Name:* ${encodeURIComponent(product.name)}%0A*ID:* ${product._id}%0A%0ACan you please share customization options?`;
-                    window.open(`https://wa.me/917075848516?text=${message}`, '_blank');
+                    window.open(`https://wa.me/917075848516?text=${message}`, "_blank");
                   }}
                 >
                   ✨ Customize This Product
                 </Button>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Choose size, color, fabric, and add personal touches.
-                </p>
               </div>
             )}
 
-            {/* Add to Cart & Actions */}
             <div className="flex flex-col sm:flex-row gap-3">
               <Button
                 variant="hero"
@@ -630,13 +646,7 @@ const ProductDetails = () => {
               </Button>
 
               <div className="grid grid-cols-2 sm:flex gap-3">
-                <Button
-                  variant="outline"
-                  size="lg"
-                  className="w-full sm:w-auto"
-                  onClick={handleWishlistToggle}
-                  disabled={isWishlistLoading}
-                >
+                <Button variant="outline" size="lg" onClick={handleWishlistToggle} disabled={isWishlistLoading}>
                   {isWishlistLoading ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
                   ) : (
@@ -644,7 +654,7 @@ const ProductDetails = () => {
                   )}
                 </Button>
 
-                <Button variant="outline" size="lg" className="w-full sm:w-auto" onClick={handleShare}>
+                <Button variant="outline" size="lg" onClick={handleShare}>
                   <Share2 className="h-5 w-5" />
                 </Button>
               </div>
@@ -652,7 +662,6 @@ const ProductDetails = () => {
           </div>
         </div>
 
-        {/* Specifications – only if any meaningful spec exists */}
         {visibleSpecs.length > 0 && (
           <section className="mt-12 md:mt-16">
             <h2 className="text-xl sm:text-2xl font-bold mb-5 sm:mb-6">Specifications</h2>
@@ -675,7 +684,6 @@ const ProductDetails = () => {
           </section>
         )}
 
-        {/* Related Products */}
         {relatedProducts.length > 0 && (
           <section className="mt-12 md:mt-16">
             <h2 className="text-xl sm:text-2xl font-bold mb-5 sm:mb-6">You May Also Like</h2>
