@@ -37,28 +37,7 @@ export const Footer = () => {
     <footer className="bg-foreground text-background">
         
       {/* Newsletter */}
-      <div className="bg-primary py-8">
-        <div className="container mx-auto px-4">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div>
-              <h3 className="text-xl font-bold text-primary-foreground">Subscribe to our Newsletter</h3>
-              <p className="text-primary-foreground/80 text-sm">Get exclusive offers and updates</p>
-            </div>
-
-            <div className="flex w-full md:w-auto gap-2">
-              <Input
-                type="email"
-                placeholder="Enter your email"
-                className="bg-white/20 border-white/30 text-primary-foreground placeholder:text-primary-foreground/60 rounded-full min-w-[250px]"
-              />
-            </div>
-
-            <Button variant="secondary" className="rounded-full">
-              Subscribe
-            </Button>
-          </div>
-        </div>
-      </div>
+      
 
       {/* Main Footer */}
       <div className="py-12">
