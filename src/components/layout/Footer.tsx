@@ -48,7 +48,7 @@ export const Footer = () => {
 
         const urls = [
           `${API_ADMIN}/categories?segment=all&status=active&level=all&sort=order&limit=200`,
-          `${API_ADMIN}/categories?segment=midrange&status=active&level=all&sort=order&limit=200`,
+          `${API_ADMIN}/categories?segment=affordable&status=active&level=all&sort=order&limit=200`,
         ];
 
         const [r1, r2] = await Promise.all(urls.map((url) => fetch(url)));
