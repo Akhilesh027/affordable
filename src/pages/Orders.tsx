@@ -351,9 +351,8 @@ const Orders = () => {
                     return (
                       <div key={s.key} className="flex items-start gap-3">
                         <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center border ${
-                            done ? "bg-primary text-primary-foreground border-primary" : "border-border"
-                          }`}
+                          className={`w-8 h-8 rounded-full flex items-center justify-center border ${done ? "bg-primary text-primary-foreground border-primary" : "border-border"
+                            }`}
                         >
                           {done ? <CheckCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
                         </div>

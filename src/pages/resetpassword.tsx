@@ -78,9 +78,9 @@ const ResetPassword = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-yellow-100 to-yellow-200">
-      
+
       <div className="bg-white/90 backdrop-blur-xl p-8 rounded-3xl shadow-xl w-[350px]">
-        
+
         <h2 className="text-2xl font-bold mb-2 text-center">
           Reset Password
         </h2>
@@ -89,7 +89,7 @@ const ResetPassword = () => {
         </p>
 
         <form onSubmit={handleReset} className="space-y-4">
-          
+
           <Input
             type="password"
             placeholder="New Password"

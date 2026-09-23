@@ -110,11 +110,11 @@ const Login = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center md:justify-end p-4 md:pr-16 bg-gradient-to-br from-yellow-100 to-yellow-200">
-      
+
       {/* Login Card */}
       <div className="relative w-full max-w-md">
         <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-xl p-8">
-          
+
           {/* Logo */}
           <Link to="/" className="flex justify-center mb-8">
             <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center">
@@ -126,7 +126,7 @@ const Login = () => {
           <p className="text-gray-500 mb-6">Sign in to continue</p>
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            
+
             {/* Email */}
             <div>
               <label className="text-sm font-medium">Email</label>

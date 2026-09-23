@@ -200,24 +200,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
- const updateProfile = async (profileData: any): Promise<boolean> => {
+  const updateProfile = async (profileData: any): Promise<boolean> => {
     try {
       const res = await axios.put(`${AFFORDABLE_API}/profile`, profileData);
 
       // Try to extract customer from both possible response formats
       const customer = res.data?.customer || res.data?.Customer;
-      
+
       if (customer) {
         const token = localStorage.getItem(TOKEN_KEY);
         setSession(token, customer);
         return true;
       }
-      
+
       // If no customer in response but success flag is true, still consider success
       if (res.data?.success === true) {
         return true;
       }
-      
+
       return false;
     } catch (error: any) {
       console.error("Update profile error:", error);

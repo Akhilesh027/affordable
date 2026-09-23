@@ -462,9 +462,8 @@ const ProductDetails = () => {
                 <button
                   key={index}
                   onClick={() => setSelectedImage(index)}
-                  className={`shrink-0 w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden border-2 transition-all ${
-                    selectedImage === index ? "border-primary" : "border-border hover:border-primary/50"
-                  }`}
+                  className={`shrink-0 w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden border-2 transition-all ${selectedImage === index ? "border-primary" : "border-border hover:border-primary/50"
+                    }`}
                 >
                   <img src={img} alt={`${product.name} ${index + 1}`} className="w-full h-full object-cover" />
                 </button>
@@ -533,11 +532,10 @@ const ProductDetails = () => {
                     <button
                       key={index}
                       onClick={() => setSelectedColor(color)}
-                      className={`relative w-10 h-10 sm:w-12 sm:h-12 rounded-xl border-2 transition-all ${
-                        selectedColor === color
-                          ? "border-primary ring-2 ring-primary/30 scale-110"
-                          : "border-border hover:border-primary/50"
-                      }`}
+                      className={`relative w-10 h-10 sm:w-12 sm:h-12 rounded-xl border-2 transition-all ${selectedColor === color
+                        ? "border-primary ring-2 ring-primary/30 scale-110"
+                        : "border-border hover:border-primary/50"
+                        }`}
                       style={{ backgroundColor: color }}
                       title={color}
                     >
@@ -560,11 +558,10 @@ const ProductDetails = () => {
                     <button
                       key={index}
                       onClick={() => setSelectedSize(size)}
-                      className={`px-4 py-2 rounded-xl border-2 text-sm font-medium transition-all ${
-                        selectedSize === size
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border hover:border-primary/50 text-foreground"
-                      }`}
+                      className={`px-4 py-2 rounded-xl border-2 text-sm font-medium transition-all ${selectedSize === size
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border hover:border-primary/50 text-foreground"
+                        }`}
                     >
                       {size}
                     </button>
@@ -583,11 +580,10 @@ const ProductDetails = () => {
                     <button
                       key={index}
                       onClick={() => setSelectedFabric(fabric)}
-                      className={`px-4 py-2 rounded-xl border-2 text-sm font-medium transition-all capitalize ${
-                        selectedFabric === fabric
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border hover:border-primary/50 text-foreground"
-                      }`}
+                      className={`px-4 py-2 rounded-xl border-2 text-sm font-medium transition-all capitalize ${selectedFabric === fabric
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border hover:border-primary/50 text-foreground"
+                        }`}
                     >
                       {fabric}
                     </button>

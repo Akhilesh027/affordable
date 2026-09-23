@@ -250,11 +250,10 @@ export const Navbar = () => {
             <Link
               key={cat.path}
               to={cat.path}
-              className={`px-4 py-3 text-sm transition-colors ${
-                isCatActive(cat.path)
-                  ? "text-primary font-semibold border-b-2 border-primary"
-                  : "text-foreground/80 hover:text-primary"
-              }`}
+              className={`px-4 py-3 text-sm transition-colors ${isCatActive(cat.path)
+                ? "text-primary font-semibold border-b-2 border-primary"
+                : "text-foreground/80 hover:text-primary"
+                }`}
             >
               {cat.name}
             </Link>

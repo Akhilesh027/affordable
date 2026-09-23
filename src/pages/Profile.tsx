@@ -440,11 +440,10 @@ const Profile = () => {
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all ${
-                      activeTab === tab.id
-                        ? "bg-white text-foreground shadow-md"
-                        : "text-primary-foreground/90 hover:bg-white/20"
-                    }`}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all ${activeTab === tab.id
+                      ? "bg-white text-foreground shadow-md"
+                      : "text-primary-foreground/90 hover:bg-white/20"
+                      }`}
                   >
                     <tab.icon className="h-5 w-5" />
                     {tab.label}
@@ -828,9 +827,8 @@ const Profile = () => {
                     return (
                       <div key={s.key} className="flex items-start gap-3">
                         <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center border ${
-                            done ? "bg-primary text-primary-foreground border-primary" : "border-border"
-                          }`}
+                          className={`w-8 h-8 rounded-full flex items-center justify-center border ${done ? "bg-primary text-primary-foreground border-primary" : "border-border"
+                            }`}
                         >
                           {done ? <CheckCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
                         </div>

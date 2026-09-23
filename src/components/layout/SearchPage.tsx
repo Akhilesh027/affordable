@@ -118,8 +118,8 @@ export default function SearchPage() {
             {loading
               ? "Searching..."
               : query
-              ? `Found ${filteredProducts.length} result${filteredProducts.length !== 1 ? "s" : ""} for "${query}"`
-              : "Enter a search term in the navbar"}
+                ? `Found ${filteredProducts.length} result${filteredProducts.length !== 1 ? "s" : ""} for "${query}"`
+                : "Enter a search term in the navbar"}
           </p>
         </div>
 

@@ -732,10 +732,10 @@ const Checkout = () => {
       items: orderItems,
       coupon: appliedCoupon?.code
         ? {
-            code: appliedCoupon.code,
-            couponId: appliedCoupon.couponId || appliedCoupon.id,
-            type: appliedCoupon.type,
-          }
+          code: appliedCoupon.code,
+          couponId: appliedCoupon.couponId || appliedCoupon.id,
+          type: appliedCoupon.type,
+        }
         : undefined,
       pricing: {
         originalSubtotalInclusive: productDiscountDetails.originalInclusiveTotal,
@@ -763,10 +763,10 @@ const Checkout = () => {
         status: args?.paymentStatus || (paymentMethod === "cod" ? "pending" : "paid"),
         ...(args?.razorpay
           ? {
-              razorpayOrderId: args.razorpay.razorpay_order_id,
-              razorpayPaymentId: args.razorpay.razorpay_payment_id,
-              razorpaySignature: args.razorpay.razorpay_signature,
-            }
+            razorpayOrderId: args.razorpay.razorpay_order_id,
+            razorpayPaymentId: args.razorpay.razorpay_payment_id,
+            razorpaySignature: args.razorpay.razorpay_signature,
+          }
           : {}),
         ...(args?.payment || {}),
       },

@@ -166,8 +166,8 @@ export default function CategoriesPage() {
         const arr: ApiProduct[] = Array.isArray(data)
           ? data
           : Array.isArray(data?.products)
-          ? data.products
-          : [];
+            ? data.products
+            : [];
 
         const mapped: Product[] = arr.map((p) => {
           const qty = Number(p.quantity ?? 0);
@@ -264,7 +264,7 @@ export default function CategoriesPage() {
 
   const FilterContent = () => (
     <div className="space-y-6">
-   
+
 
       <div>
         <h4 className="font-semibold mb-3">Category</h4>

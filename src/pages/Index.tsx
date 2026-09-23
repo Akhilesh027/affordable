@@ -7,6 +7,7 @@ import { ArrowRight, Truck, Shield, RefreshCw, Headphones } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { PhoneNumberModal } from "@/components/layout/PhoneNumberModal";
+import { HomeBannerSection } from "@/components/banners/HomeBannerSection";
 
 const API_BASE = "https://api.jsgallor.com";
 
@@ -223,6 +224,9 @@ const Index = () => {
 
   return (
     <Layout>
+      {/* 1 Video & 2 Dual Banners Managed via Admin */}
+      <HomeBannerSection />
+
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-gradient-to-br from-amber-light to-background">
         <div className="container mx-auto px-4 py-16 md:py-24">
@@ -259,37 +263,37 @@ const Index = () => {
 
             <div className="relative animate-fade-up" style={{ animationDelay: "0.2s" }}>
               <Link to={`/product/${latestProduct?._id}`}>
-              <div className="relative rounded-3xl overflow-hidden shadow-strong">
-                <img
-                  src={
-                    latestProductUi?.image ||
-                    "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800&h=600&fit=crop"
-                  }
-                  alt={latestProductUi?.name || "Premium Furniture"}
-                  className="w-full h-[400px] md:h-[500px] object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
+                <div className="relative rounded-3xl overflow-hidden shadow-strong">
+                  <img
+                    src={
+                      latestProductUi?.image ||
+                      "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800&h=600&fit=crop"
+                    }
+                    alt={latestProductUi?.name || "Premium Furniture"}
+                    className="w-full h-[400px] md:h-[500px] object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
 
-                <div className="absolute bottom-6 left-6 bg-white/90 backdrop-blur-sm rounded-2xl p-4 shadow-lg animate-float">
-                  {latestProductUi ? (
-                    <>
-                      <p className="text-sm text-muted-foreground">Now only</p>
-                      <p className="text-2xl font-bold text-foreground">₹{latestProductUi.price.toLocaleString()}</p>
-                      {latestProductUi.originalPrice && (
-                        <p className="text-xs text-muted-foreground line-through">
-                          ₹{latestProductUi.originalPrice.toLocaleString()}
-                        </p>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-sm text-muted-foreground">Starting from</p>
-                      <p className="text-2xl font-bold text-foreground">₹12,999</p>
-                    </>
-                  )}
+                  <div className="absolute bottom-6 left-6 bg-white/90 backdrop-blur-sm rounded-2xl p-4 shadow-lg animate-float">
+                    {latestProductUi ? (
+                      <>
+                        <p className="text-sm text-muted-foreground">Now only</p>
+                        <p className="text-2xl font-bold text-foreground">₹{latestProductUi.price.toLocaleString()}</p>
+                        {latestProductUi.originalPrice && (
+                          <p className="text-xs text-muted-foreground line-through">
+                            ₹{latestProductUi.originalPrice.toLocaleString()}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm text-muted-foreground">Starting from</p>
+                        <p className="text-2xl font-bold text-foreground">₹12,999</p>
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
-</Link>
+              </Link>
               <div className="absolute -top-4 -right-4 w-24 h-24 bg-primary/20 rounded-full blur-2xl" />
               <div className="absolute -bottom-4 -left-4 w-32 h-32 bg-primary/10 rounded-full blur-3xl" />
             </div>
@@ -393,7 +397,7 @@ const Index = () => {
       </section>
 
       {/* CTA Banner */}
-  
+
 
       {/* Phone Number Modal */}
       <PhoneNumberModal open={showPhoneModal} onOpenChange={setShowPhoneModal} />
