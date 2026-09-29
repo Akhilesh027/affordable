@@ -102,48 +102,15 @@ export default function Contact() {
 
   const locations = [
     {
-      name: "Corporate Headquarters & Interior Architecture Studio",
-      badge: "Interiors & Corporate HQ",
-      subtitle: "Interior Design Consultations, Material Atelier & 3D Walkthroughs",
+      name: "Central Experience Center & Warehouse",
+      badge: "Experience Center (Furniture & Interiors)",
+      subtitle: "Live Modular Mockups, Living & Dining Displays & Central Warehouse",
       address:
-        "WorkFlo Bizness Square, 4th Floor, Jubilee Enclave, HITEC City, Madhapur, Hyderabad, Telangana – 500081",
-      phone: "+91 81436 78491 / +91 70758 48516",
-      email: "info@jsgallor.com",
-      timings: "Monday – Saturday: 9:00 AM – 8:00 PM",
-      mapUrl: "https://maps.google.com/?q=WorkFlo+Bizness+Square+Madhapur+Hyderabad",
-    },
-    {
-      name: "Central Experience Center & Furniture / Interiors Warehouse",
-      badge: "Walk-In Experience Center (Furniture & Interiors)",
-      subtitle: "Live Modular Kitchens, Wardrobe Setups, Living & Dining Displays",
-      address:
-        "JS GALLOR Experience Center & Central Warehouse, Main Road, Near Metro Station Pillar 812, Uppal, Hyderabad, Telangana – 500039",
+        "Main Road, Near Metro Pillar 812, Uppal, Hyderabad – 500039",
       phone: "+91 81436 78491 / +91 70758 48516",
       email: "support@jsgallor.com",
       timings: "Monday – Sunday: 10:00 AM – 8:30 PM",
       mapUrl: "https://maps.google.com/?q=Uppal+Hyderabad+Telangana",
-    },
-    {
-      name: "Premium Showroom & Interior Consultation Lounge",
-      badge: "Furniture Showroom & Design Studio",
-      subtitle: "Curated Living & Bedroom Collections, Fabric & Finish Selection",
-      address:
-        "Road No. 12, Banjara Hills, Hyderabad, Telangana – 500034",
-      phone: "+91 81436 78491 / +91 70758 48516",
-      email: "sales@jsgallor.com",
-      timings: "Monday – Sunday: 10:30 AM – 8:30 PM",
-      mapUrl: "https://maps.google.com/?q=Road+No+12+Banjara+Hills+Hyderabad",
-    },
-    {
-      name: "Bangalore Experience Pavilion & Studio",
-      badge: "Furniture & Interior Experience Center",
-      subtitle: "Modular Systems, Solid Wood Display & Senior Architect Desk",
-      address:
-        "840, 100ft Road, HAL 2nd Stage, Indiranagar, Bengaluru, Karnataka – 560038",
-      phone: "+91 81436 78491",
-      email: "bangalore@jsgallor.com",
-      timings: "Tuesday – Sunday: 10:00 AM – 8:00 PM",
-      mapUrl: "https://maps.google.com/?q=Indiranagar+Bengaluru+Karnataka",
     },
   ];
 
