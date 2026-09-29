@@ -320,9 +320,9 @@ export const Footer = () => {
                   <li className="flex items-start gap-2.5">
                     <MapPin className="h-4 w-4 text-primary mt-1 shrink-0" />
                     <div>
-                      <p className="text-xs text-primary font-semibold uppercase tracking-wider">Central Experience Center & Warehouse</p>
+                      <p className="text-xs text-primary font-semibold uppercase tracking-wider">Experience Center & Office</p>
                       <span className="text-white text-xs leading-relaxed">
-                        Main Road, Near Metro Pillar 812, Uppal, Hyderabad – 500039
+                        Road No 1, Bagayath layout, 3rd floor, Plot 288, Uppal, Hyderabad, Telangana 500039
                       </span>
                     </div>
                   </li>

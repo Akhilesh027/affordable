@@ -102,15 +102,15 @@ export default function Contact() {
 
   const locations = [
     {
-      name: "Central Experience Center & Warehouse",
+      name: "Experience Center & Office",
       badge: "Experience Center (Furniture & Interiors)",
-      subtitle: "Live Modular Mockups, Living & Dining Displays & Central Warehouse",
+      subtitle: "Live Modular Mockups, Living & Dining Displays & Customer Studio",
       address:
-        "Main Road, Near Metro Pillar 812, Uppal, Hyderabad – 500039",
+        "Road No 1, Bagayath layout, 3rd floor, Plot 288, Uppal, Hyderabad, Telangana 500039",
       phone: "+91 81436 78491 / +91 70758 48516",
       email: "support@jsgallor.com",
       timings: "Monday – Sunday: 10:00 AM – 8:30 PM",
-      mapUrl: "https://maps.google.com/?q=Uppal+Hyderabad+Telangana",
+      mapUrl: "https://maps.google.com/?q=Road+No+1+Bagayath+layout+Plot+288+Uppal+Hyderabad+Telangana+500039",
     },
   ];
 
