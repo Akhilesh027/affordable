@@ -315,35 +315,49 @@ export const Footer = () => {
               </div>
 
               <div>
-                <h3 className="font-semibold text-lg mb-4">Our Locations</h3>
-                <ul className="space-y-4 text-sm">
-                  <li className="flex items-start gap-3">
-                    <MapPin className="h-4 w-4 text-primary mt-1" />
-                    <span className="text-white">
-                      WorkFlo Bizness Square, 4th Floor, H No 1-98/3/5/23 to
-                      27, Jubilee Enclave, Madhapur, RR District, Telangana –
-                      500081
+                <h3 className="font-semibold text-lg mb-4">Our Experience Centers</h3>
+                <ul className="space-y-3.5 text-sm">
+                  <li className="flex items-start gap-2.5">
+                    <MapPin className="h-4 w-4 text-primary mt-1 shrink-0" />
+                    <div>
+                      <p className="text-xs text-primary font-semibold uppercase tracking-wider">Corporate HQ & Interior Studio</p>
+                      <span className="text-white text-xs leading-relaxed">
+                        WorkFlo Bizness Square, 4th Floor, Jubilee Enclave, HITEC City, Madhapur, Hyderabad – 500081
+                      </span>
+                    </div>
+                  </li>
+
+                  <li className="flex items-start gap-2.5">
+                    <MapPin className="h-4 w-4 text-primary mt-1 shrink-0" />
+                    <div>
+                      <p className="text-xs text-primary font-semibold uppercase tracking-wider">Central Experience Center & Warehouse</p>
+                      <span className="text-white text-xs leading-relaxed">
+                        Main Road, Near Metro Pillar 812, Uppal, Hyderabad – 500039
+                      </span>
+                    </div>
+                  </li>
+
+                  <li className="flex items-start gap-2.5">
+                    <MapPin className="h-4 w-4 text-primary mt-1 shrink-0" />
+                    <div>
+                      <p className="text-xs text-primary font-semibold uppercase tracking-wider">Banjara Hills Design Lounge</p>
+                      <span className="text-white text-xs leading-relaxed">
+                        Road No. 12, Banjara Hills, Hyderabad – 500034
+                      </span>
+                    </div>
+                  </li>
+
+                  <li className="flex items-center gap-2.5 pt-1">
+                    <Phone className="h-4 w-4 text-primary shrink-0" />
+                    <span className="text-muted-foreground text-xs">
+                      +91 81436 78491 / +91 70758 48516
                     </span>
                   </li>
 
-                  <li className="flex items-start gap-3">
-                    <MapPin className="h-4 w-4 text-primary mt-1" />
-                    <span className="text-white">
-                      Uppal, Hyderabad, Telangana – 500039
-                    </span>
-                  </li>
-
-                  <li className="flex items-center gap-3">
-                    <Phone className="h-4 w-4 text-primary" />
-                    <span className="text-muted-foreground">
-                      +91 7075848516
-                    </span>
-                  </li>
-
-                  <li className="flex items-center gap-3">
-                    <Mail className="h-4 w-4 text-primary" />
-                    <span className="text-muted-foreground">
-                      hello@jsgalore.com
+                  <li className="flex items-center gap-2.5">
+                    <Mail className="h-4 w-4 text-primary shrink-0" />
+                    <span className="text-muted-foreground text-xs">
+                      info@jsgallor.com
                     </span>
                   </li>
                 </ul>

@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { PhoneNumberModal } from "@/components/layout/PhoneNumberModal";
 import { HomeBannerSection } from "@/components/banners/HomeBannerSection";
+import { FurnitureTestimonials } from "@/components/testimonials/FurnitureTestimonials";
 
 const API_BASE = "https://api.jsgallor.com";
 
@@ -396,8 +397,8 @@ const Index = () => {
         </div>
       </section>
 
-      {/* CTA Banner */}
-
+      {/* Customer Testimonials */}
+      <FurnitureTestimonials />
 
       {/* Phone Number Modal */}
       <PhoneNumberModal open={showPhoneModal} onOpenChange={setShowPhoneModal} />
