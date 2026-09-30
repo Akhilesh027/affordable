@@ -263,38 +263,7 @@ export const Footer = () => {
                       Contact Us
                     </Link>
                   </li>
-                  <li>
-                    <Link
-                      to="/shipping-info"
-                      className="text-muted-foreground hover:text-primary text-sm"
-                    >
-                      Shipping Info
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      to="/delivery-policy"
-                      className="text-muted-foreground hover:text-primary text-sm"
-                    >
-                      Delivery Policy
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      to="/warranty-refund"
-                      className="text-muted-foreground hover:text-primary text-sm"
-                    >
-                      Warranty & Refund
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      to="/replacement-policy"
-                      className="text-muted-foreground hover:text-primary text-sm"
-                    >
-                      Replacement Policy
-                    </Link>
-                  </li>
+
                   <li>
                     <Link
                       to="/privacy-policy"
@@ -357,12 +326,7 @@ export const Footer = () => {
               <Link to="/terms" className="hover:text-primary">
                 Terms of Service
               </Link>
-              <Link to="/delivery-policy" className="hover:text-primary">
-                Delivery Policy
-              </Link>
-              <Link to="/warranty-refund" className="hover:text-primary">
-                Warranty & Refund
-              </Link>
+
             </div>
           </div>
         </div>
